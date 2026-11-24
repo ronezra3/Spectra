@@ -35,7 +35,8 @@ import { isNull, omit, pick } from 'lodash';
 import 'reflect-metadata';
 import browser from 'webextension-polyfill';
 import BigNumber from 'bignumber.js';
-import { providerController, walletController } from './controller';
+import { walletController } from './controller';
+import { routeProviderRequest } from './controller/providerRouter';
 import createSubscription from './controller/provider/subscriptionManager';
 import getOwnMethod from './utils/getOwnMethod';
 import {
@@ -529,7 +530,7 @@ browser.runtime.onConnect.addListener((port) => {
       return subscriptionMethod.call(null, req);
     }
 
-    return providerController(req);
+    return routeProviderRequest('evm', req);
   });
 
   port.onDisconnect.addListener((port) => {
