@@ -41,7 +41,7 @@ describe('experimental Solana read-only view', () => {
       container.querySelector('[aria-label="Read-only address"]')?.textContent
     ).toContain(address);
     expect(container.textContent).toContain(
-      'No ownership, balance, connection or signing'
+      'No ownership, connection or signing'
     );
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
@@ -56,4 +56,56 @@ describe('experimental Solana read-only view', () => {
       container.querySelector('[aria-label="Read-only address"]')
     ).toBeNull();
   });
+});
+
+test('only queries devnet after an explicit click and ignores stale responses', async () => {
+  const originalFetch = global.fetch;
+  let resolveResponse!: (response: any) => void;
+  const fetchMock = jest.fn().mockReturnValue(
+    new Promise((resolve) => {
+      resolveResponse = resolve;
+    })
+  );
+  global.fetch = fetchMock;
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const previous = (globalThis as any).IS_REACT_ACT_ENVIRONMENT;
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  try {
+    act(() => root.render(createElement(ExperimentalSolanaReadOnly)));
+    const input = container.querySelector('input')!;
+    act(() => {
+      input.value = '11111111111111111111111111111111';
+      Simulate.change(input);
+    });
+    act(() => Simulate.submit(container.querySelector('form')!));
+    expect(fetchMock).not.toHaveBeenCalled();
+    const button = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'Check devnet balance'
+    )!;
+    act(() => Simulate.click(button));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    act(() => {
+      input.value = 'invalid';
+      Simulate.change(input);
+    });
+    await act(async () => {
+      resolveResponse({
+        ok: true,
+        json: async () => ({
+          jsonrpc: '2.0',
+          id: 1,
+          result: { value: 1000000000 },
+        }),
+      });
+      await Promise.resolve();
+    });
+    expect(container.textContent).not.toContain('Devnet balance:');
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+    global.fetch = originalFetch;
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
+  }
 });
