@@ -82773,6 +82773,7 @@
       "node_modules/react-i18next/dist/es/index.js",
       "node_modules/react-router/esm/react-router.js",
       "node_modules/react/index.js",
+      "src/chains/evm/address.ts",
       "src/constant/index.ts",
       "src/ui/component/ConnectStatus/useImKeyStatus.ts",
       "src/ui/component/ConnectStatus/useLedgerStatus.ts",

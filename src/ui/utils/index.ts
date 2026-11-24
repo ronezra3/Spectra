@@ -7,6 +7,10 @@ import {
   KEYRING_PURPLE_LOGOS,
 } from 'consts';
 import { Account } from 'background/service/preference';
+import {
+  areAddressIdentitiesEqual,
+  evmAddressIdentity,
+} from '@/chains/addressIdentity';
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 export const noop = () => {};
 
@@ -104,7 +108,10 @@ export const ellipsisOverflowedText = (
  */
 export const isSameAddress = (a: string, b: string) => {
   if (!a || !b) return false;
-  return a.toLowerCase() === b.toLowerCase();
+  return areAddressIdentitiesEqual(
+    evmAddressIdentity(a),
+    evmAddressIdentity(b)
+  );
 };
 
 export const icons = {
