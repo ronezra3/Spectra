@@ -8364,6 +8364,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@wallet-standard/app@npm:1.1.1":
+  version: 1.1.1
+  resolution: "@wallet-standard/app@npm:1.1.1"
+  dependencies:
+    "@wallet-standard/base": "npm:^1.1.1"
+  checksum: 10c0/d8aebcfa0528dd6c5956f819fd45792487d75dfd3d89b5995f46c8ae6c2f31cf0d05594f98a10f1345aaf30b5fa823c061c8e68c75506a267faa4d0beb62bbdd
+  languageName: node
+  linkType: hard
+
+"@wallet-standard/base@npm:1.1.1, @wallet-standard/base@npm:^1.1.1":
+  version: 1.1.1
+  resolution: "@wallet-standard/base@npm:1.1.1"
+  checksum: 10c0/b5ea7bef9d1c7a72e3737d48347d255e43a3fff666ee971c6b5f98bde43c6f3caa742c5c22c64687222ac8091ed917227332000297dffd65817cf355fbf73565
+  languageName: node
+  linkType: hard
+
+"@wallet-standard/wallet@npm:1.1.1":
+  version: 1.1.1
+  resolution: "@wallet-standard/wallet@npm:1.1.1"
+  dependencies:
+    "@wallet-standard/base": "npm:^1.1.1"
+  checksum: 10c0/869222b91f0fc791dbbc47e71d74ffa5ce031cc4aaca9c5bcd129c50f7d42abd46a9721e1abc286464f5269db6879d34c421b45d87a3fe7454ba394b3698a315
+  languageName: node
+  linkType: hard
+
 "@walletconnect/core@npm:2.23.9":
   version: 2.23.9
   resolution: "@walletconnect/core@npm:2.23.9"
@@ -18855,6 +18880,9 @@ __metadata:
     "@types/webextension-polyfill": "npm:0.10.2"
     "@typescript-eslint/eslint-plugin": "npm:7.1.1"
     "@typescript-eslint/parser": "npm:7.1.1"
+    "@wallet-standard/app": "npm:1.1.1"
+    "@wallet-standard/base": "npm:1.1.1"
+    "@wallet-standard/wallet": "npm:1.1.1"
     "@zumer/snapdom": "npm:2.12.0"
     "@zxing/browser": "npm:0.0.10"
     "@zxing/library": "npm:0.8.0"

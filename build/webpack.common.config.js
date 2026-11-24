@@ -328,6 +328,11 @@ const config = {
       'process.env.version': JSON.stringify(`version: ${APP_VERSION}`),
       'process.env.release': JSON.stringify(APP_VERSION),
       'process.env.RABBY_BUILD_GIT_HASH': JSON.stringify(BUILD_GIT_HASH),
+      'process.env.OMNI_SOLANA_DISCOVERY': JSON.stringify(
+        IS_DEV_BUILD && process.env.OMNI_SOLANA_DISCOVERY === '1'
+          ? '1'
+          : '0'
+      ),
       'process.env.ETHERSCAN_KEY': JSON.stringify(process.env.ETHERSCAN_KEY),
       'process.env.RABBY_SENTRY_DSN': JSON.stringify(
         process.env.RABBY_SENTRY_DSN
