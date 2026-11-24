@@ -53,6 +53,7 @@ import {
 import uninstalledMetricService from '../uninstalled';
 import { isEmpty } from 'lodash';
 import { sanitizeUnencryptedKeyringData } from './sanitizeUnencryptedKeyringData';
+import { SOLANA_KEYRING_TYPE } from './solanaKeyringType';
 import { SigningAttempt, withSigningDiagnostics } from './signing-diagnostics';
 import {
   clearWalletConnectTransportError,
@@ -139,6 +140,7 @@ const withWalletConnectStatusRejection = (
 const UNENCRYPTED_IGNORE_KEYRING = [
   KEYRING_TYPE.SimpleKeyring,
   KEYRING_TYPE.HdKeyring,
+  SOLANA_KEYRING_TYPE,
 ];
 
 export const KEYRING_SDK_TYPES = {
@@ -682,6 +684,11 @@ export class KeyringService extends EventEmitter {
    * @returns {Promise<Object>} A Promise that resolves to the state.
    */
   addNewAccount(selectedKeyring: any): Promise<string[]> {
+    if (selectedKeyring?.type === SOLANA_KEYRING_TYPE) {
+      return Promise.reject(
+        new Error('Solana accounts require a Solana-specific creation flow')
+      );
+    }
     let _accounts;
     return selectedKeyring
       .addAccounts(1)
@@ -796,6 +803,11 @@ export class KeyringService extends EventEmitter {
     brand?: string,
     removeEmptyKeyrings = true
   ): Promise<any> {
+    if (type === SOLANA_KEYRING_TYPE) {
+      return Promise.reject(
+        new Error('Solana accounts require a Solana-specific removal flow')
+      );
+    }
     return this.getKeyringForAccount(address, type)
       .then(async (keyring) => {
         // Not all the keyrings support this, so we have to check
@@ -1385,13 +1397,16 @@ export class KeyringService extends EventEmitter {
   /**
    * Get Accounts
    *
-   * Returns the public addresses of all current accounts
-   * managed by all currently unlocked keyrings.
+   * Returns EVM account addresses from currently unlocked keyrings.
+   * Solana accounts are accessed through getSolanaAccounts().
    *
    * @returns {Promise<Array<string>>} The array of accounts.
    */
   async getAccounts(): Promise<string[]> {
-    const keyrings = this.keyrings || [];
+    // This legacy method serves EVM callers and normalizes every address.
+    const keyrings = (this.keyrings || []).filter(
+      (keyring) => keyring.type !== SOLANA_KEYRING_TYPE
+    );
     const addrs = await Promise.all(
       keyrings.map((kr) => kr.getAccounts())
     ).then((keyringArrays) => {
@@ -1400,6 +1415,16 @@ export class KeyringService extends EventEmitter {
       }, []);
     });
     return addrs.map(normalizeAddress);
+  }
+
+  /** Isolated Solana identity; never exposes or normalizes it as an EVM account. */
+  async getSolanaAccounts(): Promise<string[]> {
+    if (!this.isUnlocked()) return [];
+    const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);
+    const accounts: string[][] = await Promise.all(
+      keyrings.map((keyring) => keyring.getAccounts())
+    );
+    return this.isUnlocked() ? accounts.flat() : [];
   }
 
   /**
@@ -1418,10 +1443,19 @@ export class KeyringService extends EventEmitter {
     end?: number,
     includeWatchKeyring = true
   ): Promise<any> {
+    if (type === SOLANA_KEYRING_TYPE) {
+      return Promise.reject(
+        new Error('Solana accounts require a Solana-specific lookup')
+      );
+    }
     const hexed = normalizeAddress(address).toLowerCase();
     let keyrings = type
       ? this.keyrings.filter((keyring) => keyring.type === type)
       : this.keyrings;
+    // Never pass case-sensitive Base58 addresses through EVM normalization.
+    keyrings = keyrings.filter(
+      (keyring) => keyring.type !== SOLANA_KEYRING_TYPE
+    );
     if (!includeWatchKeyring) {
       keyrings = keyrings.filter(
         (keyring) => keyring.type !== KEYRING_TYPE.WatchAddressKeyring
@@ -1490,13 +1524,17 @@ export class KeyringService extends EventEmitter {
 
   getAllTypedAccounts(): Promise<DisplayedKeryring[]> {
     return Promise.all(
-      this.keyrings.map((keyring) => this.displayForKeyring(keyring))
+      this.keyrings
+        .filter((keyring) => keyring.type !== SOLANA_KEYRING_TYPE)
+        .map((keyring) => this.displayForKeyring(keyring))
     );
   }
 
   async getAllTypedVisibleAccounts(): Promise<DisplayedKeryring[]> {
     const keyrings = await Promise.all(
-      this.keyrings.map((keyring) => this.displayForKeyring(keyring, false))
+      this.keyrings
+        .filter((keyring) => keyring.type !== SOLANA_KEYRING_TYPE)
+        .map((keyring) => this.displayForKeyring(keyring, false))
     );
     return keyrings.filter((keyring) => keyring.accounts.length > 0);
   }
@@ -1546,6 +1584,11 @@ export class KeyringService extends EventEmitter {
    */
   /* eslint-disable require-await */
   async clearKeyrings(): Promise<void> {
+    // The Solana software keyring must wipe its private byte arrays before
+    // references are dropped, including during vault reload and recovery.
+    this.keyrings
+      .filter((keyring) => keyring.type === SOLANA_KEYRING_TYPE)
+      .forEach((keyring) => keyring.cleanUp?.());
     // clear keyrings from memory
     this.keyrings = [];
     this.memStore.updateState({
@@ -1560,7 +1603,9 @@ export class KeyringService extends EventEmitter {
    */
   async _updateMemStoreKeyrings(): Promise<void> {
     const keyrings = await Promise.all(
-      this.keyrings.map((keyring) => this.displayForKeyring(keyring))
+      this.keyrings
+        .filter((keyring) => keyring.type !== SOLANA_KEYRING_TYPE)
+        .map((keyring) => this.displayForKeyring(keyring))
     );
     return this.memStore.updateState({ keyrings });
   }
@@ -1634,18 +1679,20 @@ export class KeyringService extends EventEmitter {
 
   async getSyncVault(filteredAccounts: Account[]) {
     const serializedKeyrings = await Promise.all(
-      this.keyrings.map((keyring) => {
-        return Promise.all([keyring.type, keyring.serialize()]).then(
-          async (serializedKeyringArray) => {
-            // Label the output values on each serialized Keyring:
-            return {
-              type: serializedKeyringArray[0] as string,
-              data: serializedKeyringArray[1] as any,
-              accounts: (await keyring.getAccounts()) as string[],
-            };
-          }
-        );
-      })
+      this.keyrings
+        .filter((keyring) => keyring.type !== SOLANA_KEYRING_TYPE)
+        .map((keyring) => {
+          return Promise.all([keyring.type, keyring.serialize()]).then(
+            async (serializedKeyringArray) => {
+              // Label the output values on each serialized Keyring:
+              return {
+                type: serializedKeyringArray[0] as string,
+                data: serializedKeyringArray[1] as any,
+                accounts: (await keyring.getAccounts()) as string[],
+              };
+            }
+          );
+        })
     );
 
     const accounts: string[] = [];

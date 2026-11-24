@@ -31,5 +31,14 @@ let registered = false;
 export const registerExperimentalSolanaWallet = (): void => {
   if (registered) return;
   registered = true;
-  registerWallet(experimentalWallet);
+  if (
+    process.env.NODE_ENV === 'development' &&
+    process.env.OMNI_SOLANA_READONLY === '1'
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const module = require('./connectableDiscovery') as typeof import('./connectableDiscovery');
+    registerWallet(module.createConnectableSolanaWallet());
+  } else {
+    registerWallet(experimentalWallet);
+  }
 };

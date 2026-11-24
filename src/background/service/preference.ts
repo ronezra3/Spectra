@@ -24,6 +24,7 @@ import {
   RateGuideLastExposure,
 } from '@/utils/rateGuidance';
 import { findChain } from '@/utils/chain';
+import { solanaConnectionSession } from './solanaConnection';
 
 const version = process.env.release || '0';
 
@@ -665,6 +666,20 @@ class PreferenceService {
   };
 
   setCurrentAccount = (account: Account | null) => {
+    const previous = this.store.currentAccount;
+    if (
+      (!previous && !!account) ||
+      (!!previous && !account) ||
+      (previous &&
+        account &&
+        (previous.type !== account.type ||
+          previous.brandName !== account.brandName ||
+          typeof previous.address !== 'string' ||
+          typeof account.address !== 'string' ||
+          !isSameAddress(previous.address, account.address)))
+    ) {
+      solanaConnectionSession.invalidate();
+    }
     this.store.currentAccount = account;
     if (account) {
       if (!this.store.isEnabledDappAccount) {

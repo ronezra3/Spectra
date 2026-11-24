@@ -50,6 +50,91 @@ const bcm = new BroadcastChannelMessage({
   return defer.promise.then((pm) => pm?.request(data));
 });
 
+// A separate channel and port keep Solana requests out of EVM dispatch.
+if (
+  process.env.NODE_ENV === 'development' &&
+  process.env.OMNI_SOLANA_DISCOVERY === '1' &&
+  process.env.OMNI_SOLANA_READONLY === '1'
+) {
+  let solanaPort: PortMessage | null = null;
+  const solanaChannel = new BroadcastChannelMessage({
+    name: 'omni-solana-content',
+    target: 'omni-solana-page',
+  });
+  const getSolanaPort = () => {
+    if (solanaPort) return solanaPort;
+    const current = new PortMessage().connect('omni-solana-v1');
+    solanaPort = current;
+    current.on('message', (message) => solanaChannel.send('message', message));
+    current.on('disconnect', () => {
+      if (solanaPort !== current) return;
+      solanaPort = null;
+      solanaChannel.send('message', { event: 'accountsChanged', accounts: [] });
+      current.dispose();
+    });
+    return current;
+  };
+  solanaChannel.listen((data: unknown) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('Invalid Solana request');
+    }
+    const request = data as {
+      method?: unknown;
+      silent?: unknown;
+      account?: unknown;
+      messageHex?: unknown;
+      transactionHex?: unknown;
+    };
+    if (request.method === 'connect') {
+      if (request.silent !== undefined && typeof request.silent !== 'boolean')
+        throw new Error('Invalid connection options');
+      return getSolanaPort().request({
+        method: 'connect',
+        silent: request.silent === true,
+      });
+    }
+    if (request.method === 'disconnect')
+      return getSolanaPort().request({ method: 'disconnect' });
+    if (
+      typeof request.account !== 'string' ||
+      request.account.length < 32 ||
+      request.account.length > 44
+    ) {
+      throw new Error('Invalid Solana account');
+    }
+    if (
+      request.method === 'signMessage' &&
+      typeof request.messageHex === 'string' &&
+      request.messageHex.length <= 2048 &&
+      /^(?:[0-9a-f]{2})*$/.test(request.messageHex)
+    ) {
+      return getSolanaPort().request({
+        method: 'signMessage',
+        account: request.account,
+        messageHex: request.messageHex,
+      });
+    }
+    if (
+      (request.method === 'signTransaction' ||
+        request.method === 'signAndSendTransaction') &&
+      typeof request.transactionHex === 'string' &&
+      request.transactionHex.length <= 2464 &&
+      /^(?:[0-9a-f]{2})+$/.test(request.transactionHex)
+    ) {
+      return getSolanaPort().request({
+        method: request.method,
+        account: request.account,
+        transactionHex: request.transactionHex,
+      });
+    }
+    throw new Error('Unsupported Solana request');
+  });
+  document.addEventListener('beforeunload', () => {
+    solanaChannel.dispose();
+    solanaPort?.dispose();
+  });
+}
+
 // background notification
 
 document.addEventListener('beforeunload', () => {

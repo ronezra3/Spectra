@@ -3,6 +3,7 @@ import { Switch, Route } from 'react-router-dom';
 import { PrivateRoute } from 'ui/component';
 
 let ExperimentalSolanaReadOnly: React.ComponentType | null = null;
+let ExperimentalSolanaWallet: React.ComponentType | null = null;
 if (
   process.env.NODE_ENV === 'development' &&
   process.env.OMNI_SOLANA_READONLY === '1'
@@ -11,6 +12,8 @@ if (
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const module = require('./ExperimentalSolanaReadOnly');
   ExperimentalSolanaReadOnly = module.default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  ExperimentalSolanaWallet = require('./ExperimentalSolanaWallet').default;
 }
 import Welcome from './Welcome';
 import NoAddress from './NoAddress';
@@ -160,6 +163,13 @@ const Main = () => {
     <>
       <Route path="/" component={LogPageView} />
       <Switch>
+        {ExperimentalSolanaWallet && (
+          <Route
+            exact
+            path="/experimental/solana-wallet"
+            component={ExperimentalSolanaWallet}
+          />
+        )}
         {ExperimentalSolanaReadOnly && (
           <Route
             exact

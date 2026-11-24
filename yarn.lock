@@ -4292,6 +4292,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@noble/ciphers@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@noble/ciphers@npm:2.4.0"
+  checksum: 10c0/f8c0cfec0c96554a379385e0a851e4f4eb3ceb1ac645885d8f94f6e75b8d56233e4a434413cb2bf37ec08960cc05dad1ddf98d25311e990ea6505c56a1c1ca95
+  languageName: node
+  linkType: hard
+
 "@noble/curves@npm:1.2.0":
   version: 1.2.0
   resolution: "@noble/curves@npm:1.2.0"
@@ -4334,6 +4341,15 @@ __metadata:
   dependencies:
     "@noble/hashes": "npm:1.8.0"
   checksum: 10c0/150014751ebe8ca06a8654ca2525108452ea9ee0be23430332769f06808cddabfe84f248b6dbf836916bc869c27c2092957eec62c7506d68a1ed0a624017c2a3
+  languageName: node
+  linkType: hard
+
+"@noble/curves@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@noble/curves@npm:2.4.0"
+  dependencies:
+    "@noble/hashes": "npm:2.4.0"
+  checksum: 10c0/b60b737f65cc4e128dd94fea467df1ed73c5c0c089ef1bdb61614a0897db1fa7151d7f95bb7205854a9030d3f80a879e00f3bb74990befde061184ae43dfaec6
   languageName: node
   linkType: hard
 
@@ -4385,6 +4401,13 @@ __metadata:
   version: 2.2.0
   resolution: "@noble/hashes@npm:2.2.0"
   checksum: 10c0/cad8630c504d6b9271984f685cd0af9101b40988fc2dfbe17ccdf068a9941f95cc5c9957d89e9ca4b7ca94c15cb35f93510c5d53a09fbcc83ee503b93d0a1034
+  languageName: node
+  linkType: hard
+
+"@noble/hashes@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@noble/hashes@npm:2.4.0"
+  checksum: 10c0/f5820a38c52886073a69722a030688ad188bbacb822d01554545371259961c2b916266c57c013c2ce5a0d78aec977142fc68fd2a79be4c97b0644fcee9bb35f6
   languageName: node
   linkType: hard
 
@@ -5256,6 +5279,13 @@ __metadata:
   version: 1.2.6
   resolution: "@scure/base@npm:1.2.6"
   checksum: 10c0/49bd5293371c4e062cb6ba689c8fe3ea3981b7bb9c000400dc4eafa29f56814cdcdd27c04311c2fec34de26bc373c593a1d6ca6d754398a488d587943b7c128a
+  languageName: node
+  linkType: hard
+
+"@scure/base@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@scure/base@npm:2.4.0"
+  checksum: 10c0/985a4bdcafa4289e0cb8b6d53453347308d5ff6ffcbe84d8fac102374fb419b52db565e98fa3931b79a4be1cc3218583065bbca27dfaabca687aac0f3db3639d
   languageName: node
   linkType: hard
 
@@ -6226,7 +6256,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@solana/web3.js@npm:^1.70.1":
+"@solana/web3.js@npm:1.98.4, @solana/web3.js@npm:^1.70.1":
   version: 1.98.4
   resolution: "@solana/web3.js@npm:1.98.4"
   dependencies:
@@ -16788,6 +16818,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"micro-key-producer@npm:0.10.2":
+  version: 0.10.2
+  resolution: "micro-key-producer@npm:0.10.2"
+  dependencies:
+    "@noble/ciphers": "npm:2.4.0"
+    "@noble/curves": "npm:2.4.0"
+    "@noble/hashes": "npm:2.4.0"
+    "@scure/base": "npm:2.4.0"
+    micro-packed: "npm:0.11.1"
+  bin:
+    aesscr: bin/aesscr.js
+    gpgkp: bin/gpgkp.js
+  checksum: 10c0/8cbecde6f0abe7e73c42bda29e18ee4d878eae98a7d61ca86841108eddb2271676113910435409d425fd30553703bb7edb9abfa54e259d1d9dac919339b89fe8
+  languageName: node
+  linkType: hard
+
+"micro-packed@npm:0.11.1":
+  version: 0.11.1
+  resolution: "micro-packed@npm:0.11.1"
+  dependencies:
+    "@scure/base": "npm:2.4.0"
+  checksum: 10c0/2927f70acfe2c4bcb3eb84a44a23e3188b04bca6cf0c72f4254f63c19ffe25b40ea9e72ef2995bb64e058dcfb94373361d264fdcc84741c84839b315190f24b6
+  languageName: node
+  linkType: hard
+
 "micromark-core-commonmark@npm:^1.0.1":
   version: 1.1.0
   resolution: "micromark-core-commonmark@npm:1.1.0"
@@ -18858,6 +18913,7 @@ __metadata:
     "@sentry/browser": "npm:10.58.0"
     "@sentry/react": "npm:10.58.0"
     "@sentry/webpack-plugin": "npm:5.3.0"
+    "@solana/web3.js": "npm:1.98.4"
     "@svgr/webpack": "npm:5.5.0"
     "@swc/core": "npm:1.16.18"
     "@tailwindcss/postcss": "npm:4.3.0"
@@ -18936,6 +18992,7 @@ __metadata:
     lodash: "npm:4.18.1"
     lottie-react: "npm:2.4.0"
     lru-cache: "npm:6.0.0"
+    micro-key-producer: "npm:0.10.2"
     minimizer-webpack-plugin: "npm:5.13.0"
     multiformats: "npm:13.3.2"
     nanoid: "npm:3.3.6"
