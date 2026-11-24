@@ -3,7 +3,8 @@ import { patchPersistStore } from 'background/utils';
 
 jest.mock('background/utils', () => ({
   createPersistStore: jest.fn(),
-  isSameAddress: (a: string, b: string) => a.toLowerCase() === b.toLowerCase(),
+  isSameAddress: jest.requireActual('@/chains/evm/address')
+    .areEvmAddressesEqual,
   patchPersistStore: jest.fn((store, partials) => {
     Object.assign(store, partials);
   }),
@@ -44,5 +45,25 @@ describe('whitelist service patches', () => {
     whitelistService.store.enabled = false;
 
     expect(whitelistService.getStore().enabled).toBe(true);
+  });
+
+  test('matches an existing address regardless of case without duplicating it', () => {
+    expect(whitelistService.isInWhiteList('0xAAA')).toBe(true);
+    expect(whitelistService.isInWhiteList('0xccc')).toBe(false);
+
+    whitelistService.addWhitelist('0xAAA');
+    expect(patchPersistStore).not.toHaveBeenCalled();
+  });
+
+  test('stores new addresses in lowercase and removes existing case variants', () => {
+    whitelistService.addWhitelist('0xCcC');
+    expect(whitelistService.getWhitelist()).toEqual([
+      '0xaaa',
+      '0xbbb',
+      '0xccc',
+    ]);
+
+    whitelistService.removeWhitelist('0xBbB');
+    expect(whitelistService.getWhitelist()).toEqual(['0xaaa', '0xccc']);
   });
 });
