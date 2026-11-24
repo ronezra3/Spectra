@@ -16,5 +16,6 @@ describe('UI address comparison compatibility', () => {
   test('does not treat missing addresses as equal', () => {
     expect(isSameAddress('', '')).toBe(false);
     expect(isSameAddress('0xabc', '')).toBe(false);
+    expect(isSameAddress('', '0xabc')).toBe(false);
   });
 });
