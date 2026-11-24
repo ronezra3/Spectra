@@ -1,6 +1,17 @@
 import React, { useEffect } from 'react';
 import { Switch, Route } from 'react-router-dom';
 import { PrivateRoute } from 'ui/component';
+
+let ExperimentalSolanaReadOnly: React.ComponentType | null = null;
+if (
+  process.env.NODE_ENV === 'development' &&
+  process.env.OMNI_SOLANA_READONLY === '1'
+) {
+  // Exclude the experimental UI and its dependencies from production builds.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const module = require('./ExperimentalSolanaReadOnly');
+  ExperimentalSolanaReadOnly = module.default;
+}
 import Welcome from './Welcome';
 import NoAddress from './NoAddress';
 import CreatePassword from './CreatePassword';
@@ -149,6 +160,13 @@ const Main = () => {
     <>
       <Route path="/" component={LogPageView} />
       <Switch>
+        {ExperimentalSolanaReadOnly && (
+          <Route
+            exact
+            path="/experimental/solana-read-only"
+            component={ExperimentalSolanaReadOnly}
+          />
+        )}
         <Route exact path="/welcome">
           <Welcome />
         </Route>

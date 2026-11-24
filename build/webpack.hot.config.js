@@ -178,6 +178,9 @@ const commonPlugins = [
     'process.env.OMNI_SOLANA_DISCOVERY': JSON.stringify(
       process.env.OMNI_SOLANA_DISCOVERY === '1' ? '1' : '0'
     ),
+    'process.env.OMNI_SOLANA_READONLY': JSON.stringify(
+      process.env.OMNI_SOLANA_READONLY === '1' ? '1' : '0'
+    ),
     'process.env.ETHERSCAN_KEY': JSON.stringify(process.env.ETHERSCAN_KEY),
     'process.env.RABBY_SENTRY_DSN': JSON.stringify(
       process.env.RABBY_SENTRY_DSN
