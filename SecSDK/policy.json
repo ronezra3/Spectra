@@ -79191,6 +79191,7 @@
       "src/background/service/pageStateCache.ts",
       "src/background/utils/persistStore.ts",
       "src/background/utils/promiseFlow.ts",
+      "src/chains/evm/address.ts",
       "src/utils/env.ts"
     ]
   },

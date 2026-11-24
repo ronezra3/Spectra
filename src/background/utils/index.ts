@@ -2,6 +2,7 @@ import pageStateCache from '../service/pageStateCache';
 import { isManifestV3 } from '@/utils/env';
 import { addHexPrefix, bytesToHex, toBytes } from '@ethereumjs/util';
 import browser from 'webextension-polyfill';
+import { areEvmAddressesEqual } from '@/chains/evm/address';
 export {
   default as createPersistStore,
   patchPersistStore,
@@ -83,7 +84,7 @@ export const hasWalletConnectPageStateCache = () => {
 };
 
 export const isSameAddress = (a: string, b: string) => {
-  return a.toLowerCase() === b.toLowerCase();
+  return areEvmAddressesEqual(a, b);
 };
 
 export const setPopupIcon = (
