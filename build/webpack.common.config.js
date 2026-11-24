@@ -333,6 +333,9 @@ const config = {
           ? '1'
           : '0'
       ),
+      'process.env.OMNI_SOLANA_READONLY': JSON.stringify(
+        IS_DEV_BUILD && process.env.OMNI_SOLANA_READONLY === '1' ? '1' : '0'
+      ),
       'process.env.ETHERSCAN_KEY': JSON.stringify(process.env.ETHERSCAN_KEY),
       'process.env.RABBY_SENTRY_DSN': JSON.stringify(
         process.env.RABBY_SENTRY_DSN
