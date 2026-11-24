@@ -47,6 +47,7 @@ jest.mock('@/constant', () => ({
 }));
 
 import provider from '@/background/controller/provider';
+import { routeProviderRequest } from '@/background/controller/providerRouter';
 
 const createRequest = (method: string) => ({
   data: { method, params: [] },
@@ -61,6 +62,15 @@ const createRequest = (method: string) => ({
 describe('provider internal method dispatch', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  test('routes EVM requests through the existing provider and RPC flow', async () => {
+    const req = createRequest('eth_chainId');
+
+    await expect(routeProviderRequest('evm', req)).resolves.toBe('rpc-result');
+    expect(mockRpcFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ account: currentAccount, data: req.data })
+    );
   });
 
   test.each([
