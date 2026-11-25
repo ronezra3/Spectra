@@ -22,11 +22,11 @@ EVM requests were routed through an explicit boundary. Solana gained its own Wal
 
 **Why:** a site authorized for an Ethereum account must not gain access to a Solana account implicitly. Browser transport is shared in concept; identity, authorization, and signing semantics are not.
 
-## 4. Introduce custody without mixing keyrings
+## 4. Introduce isolated custody, then move toward a shared vault
 
-The experimental Solana keyring derives Ed25519 keys using the Solana derivation path. It lives in a separately encrypted IndexedDB vault, with an independent test password and explicit lock state tied to the Rabby lock lifecycle. It is not registered in the legacy EVM account lists, persistence mirror, or backup/export pipeline.
+The first experimental Solana keyring derived Ed25519 keys in a separately encrypted IndexedDB vault. We subsequently added explicit, opt-in migration into the main encrypted keyring vault, retaining the original ciphertext. The target is activated only after storage acknowledgement and a check that the encrypted source still matches the fingerprint stored inside the encrypted target. A native Devnet setup can also create its first Solana account in the main vault without a legacy source. Lock and unlock invalidate Solana sessions. Solana keys are excluded from the unencrypted keyring mirror and ordinary EVM account lists.
 
-**Why:** Rabby's existing keyring and persistence paths contain EVM assumptions; putting Solana secrets into them before redesigning those contracts risks data leakage and account confusion. This is isolation for an experiment, not a claim of a complete backup or custody design.
+**Why:** isolation let us validate chain-specific behavior before sharing encryption. The migration preserves a recovery source and fails closed when its state is ambiguous. A native marker distinguishes new accounts from migrated ones. A shared encrypted container does not imply that EVM and Solana accounts share a recovery phrase: the current Solana onboarding still creates or accepts its own disposable phrase, and account grouping and backup are not complete.
 
 ## 5. Bind approvals to exact intent
 
@@ -54,10 +54,25 @@ The wallet experience uses Rabby controls, theme variables, and dashboard naviga
 
 **Why:** this creates a familiar wallet experience without sending Solana accounts through EVM balance, address normalization, or token models. SPL metadata, token transfers, and full EVM regression coverage require separate verification before claiming feature completeness.
 
+## 9. Incrementally unify the account experience
+
+The development dashboard now offers a view selector for the aggregate EVM dashboard and Solana Devnet. Shared-vault users can add another disposable Solana account, authenticated with the main wallet password. New test installations can create the first Solana account directly in that vault. Existing legacy installations retain their source and can opt into migration.
+
+The selector currently chooses a dashboard view: it does not select individual EVM chains, switch a dApp's network, or associate an EVM address with a Solana address. The two account selections remain separate. A real unified network and account model still needs explicit account association, lifecycle and approval semantics, and a shared UI shell.
+
+**Why:** presenting a dashboard view as a protocol network switch would be misleading. EVM address identity and dApp permissions must not be reused implicitly for Solana. Explicit incremental boundaries make it possible to test each change without pretending the final UX already exists.
+
+## 10. Evidence and remaining verification
+
+An isolated Chrome test verified migration of three disposable accounts into the main vault, preserved their public addresses, and reopened them after reloading the extension with the main wallet password; the EVM test address remained visible. The new dashboard selector was also exercised in Chrome. A separate automated integration test uses the actual encrypted keyring and Ed25519 implementation to create accounts, sign, lock, reopen, and preserve an EVM account. IndexedDB and unrelated unavailable hardware dependencies are mocked in that test.
+
+The first-time native shared-vault onboarding and addition of a new shared account have not yet been validated end to end in a fresh browser profile. A post-migration test transfer was prepared, but its submission was not confirmed, so it must not be reported as a successful transaction. Earlier Devnet provider and transfer results in section 7 describe the earlier separate-vault implementation, not a complete regression of the new custody path.
+
 ## Current limits and trade-offs
 
 - Devnet and explicit development flags only; no Mainnet support.
-- The user-facing Solana vault is separate from Rabby's EVM vault and has no full backup/export flow.
+- Shared custody and legacy migration are experimental. Solana account grouping with the existing EVM seed and a complete backup/export flow are not implemented.
+- The dashboard has a view selector rather than one complete network and account selector. The Solana views have not yet been fully merged into the shared dashboard components.
 - General dApp instructions, versioned transactions, swaps, NFTs, and hardware wallets are outside the implemented scope.
 - No fee estimate or transaction simulation; displaying only the supported simple transfer is intentional.
 - Test results provide evidence for the paths exercised, not proof that Ethereum behavior is unchanged everywhere.
