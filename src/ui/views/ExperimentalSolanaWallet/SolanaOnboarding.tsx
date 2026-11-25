@@ -66,28 +66,41 @@ export const SolanaOnboarding = ({
     setError('');
     try {
       const current = await wallet.experimentalSolanaStatus();
-      if (!current.unlocked) {
-        if (current.exists) await wallet.experimentalSolanaUnlock(password);
-        else await wallet.experimentalSolanaCreate(password);
-      }
-      if (mode !== 'unlock') {
-        const importAccount =
-          current.custody === 'shared'
-            ? wallet.experimentalSolanaAddShared
-            : wallet.experimentalSolanaImport;
-        await importAccount(
+      if (
+        current.exists !== status.exists ||
+        current.custody !== status.custody
+      )
+        throw new Error('Solana custody changed');
+      if (!current.exists && mode !== 'unlock') {
+        await wallet.experimentalSolanaCreateNative(
           password,
           phrase.trim(),
           mode === 'create' ? 0 : accountIndex
         );
+      } else {
+        if (!current.unlocked) await wallet.experimentalSolanaUnlock(password);
+        if (mode !== 'unlock') {
+          const importAccount =
+            current.custody === 'shared'
+              ? wallet.experimentalSolanaAddShared
+              : wallet.experimentalSolanaImport;
+          await importAccount(
+            password,
+            phrase.trim(),
+            mode === 'create' ? 0 : accountIndex
+          );
+        }
       }
       setPhrase('');
       await onDone();
     } catch {
-      if (status.custody === 'shared' && mode !== 'unlock') {
+      if (
+        (status.custody === 'shared' || !status.exists) &&
+        mode !== 'unlock'
+      ) {
         setUncertain(true);
         setError(
-          'The account may or may not have been added. Reopen the wallet and check its accounts before trying again. Your original test vault was retained.'
+          'The account may or may not have been added. Reopen the wallet and check its accounts before trying again.'
         );
       } else {
         setError(
@@ -220,20 +233,18 @@ export const SolanaOnboarding = ({
         </>
       )}
       <label className="solana-wallet__field">
-        {status.custody === 'shared'
+        {status.custody === 'shared' || !status.exists
           ? 'Wallet password'
-          : status.exists
-          ? 'Solana test vault password'
-          : 'Create a Solana test vault password'}
+          : 'Solana test vault password'}
         <input
           type="password"
-          autoComplete={status.exists ? 'current-password' : 'new-password'}
+          autoComplete="current-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
       </label>
       <p className="solana-wallet__notice">
-        {status.custody === 'shared'
+        {status.custody === 'shared' || !status.exists
           ? 'Use the password for the main wallet.'
           : 'This password is independent of the Ethereum wallet password.'}
       </p>
