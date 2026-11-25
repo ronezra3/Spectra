@@ -1129,9 +1129,13 @@ export class KeyringService extends EventEmitter {
     }
 
     const generation = this.lockGeneration;
-    const operation = this.persistenceQueue.then(() =>
+    return this.enqueuePersistence(() =>
       this.persistKeyringsForGeneration(generation)
     );
+  }
+
+  private enqueuePersistence<T>(job: () => Promise<T>): Promise<T> {
+    const operation = this.persistenceQueue.then(job);
     // A failed write must not permanently block later persistence attempts.
     this.persistenceQueue = operation.then(
       () => undefined,
@@ -1141,11 +1145,14 @@ export class KeyringService extends EventEmitter {
   }
 
   private async persistKeyringsForGeneration(
-    generation: number
+    generation: number,
+    assertSourceCurrent?: () => void,
+    onCommitted?: () => void
   ): Promise<boolean> {
     if (!this.isUnlocked() || generation !== this.lockGeneration) {
       throw new Error('Wallet is locked');
     }
+    assertSourceCurrent?.();
 
     const serializedKeyrings = await Promise.all(
       this.keyrings.map((keyring) => {
@@ -1163,6 +1170,7 @@ export class KeyringService extends EventEmitter {
     if (!this.isUnlocked() || generation !== this.lockGeneration) {
       throw new Error('Wallet is locked');
     }
+    assertSourceCurrent?.();
 
     let hasEncryptedKeyringData = false;
     const unencryptedKeyringData = serializedKeyrings
@@ -1193,18 +1201,66 @@ export class KeyringService extends EventEmitter {
       await passwordClearKey('keyring');
       throw new Error('Wallet is locked');
     }
+    try {
+      assertSourceCurrent?.();
+    } catch (error) {
+      await passwordClearKey('keyring');
+      throw error;
+    }
 
     this.store.updateState({
       vault: encryptedString,
       unencryptedKeyringData,
       hasEncryptedKeyringData,
     });
+    onCommitted?.();
 
     eventBus.emit(EVENTS.broadcastToUI, {
       method: EVENTS.PERSIST_KEYRING,
     });
 
     return true;
+  }
+
+  /** Background-only migration primitive; never expose the snapshot to UI. */
+  async importSolanaMigrationSnapshot(
+    snapshot: SolanaKeyring,
+    assertSourceCurrent: () => void
+  ): Promise<string[]> {
+    if (!this.isUnlocked()) throw new Error('Wallet is locked');
+    const generation = this.lockGeneration;
+    return this.enqueuePersistence(async () => {
+      if (!this.isUnlocked() || generation !== this.lockGeneration)
+        throw new Error('Wallet is locked');
+      assertSourceCurrent();
+      // Avoid guessing whether an existing destination represents the source.
+      if (this.getKeyringsByType(SOLANA_KEYRING_TYPE).length)
+        throw new Error('Solana destination already exists');
+      const candidate = new SolanaKeyring();
+      let committed = false;
+      try {
+        await candidate.deserialize(await snapshot.serialize());
+        const addresses = await candidate.getAccounts();
+        if (!addresses.length) throw new Error('Solana source is empty');
+        if (!this.isUnlocked() || generation !== this.lockGeneration)
+          throw new Error('Wallet is locked');
+        assertSourceCurrent();
+        this.keyrings.push(candidate);
+        await this.persistKeyringsForGeneration(
+          generation,
+          assertSourceCurrent,
+          () => {
+            committed = true;
+          }
+        );
+        return addresses;
+      } finally {
+        if (!committed) {
+          this.keyrings = this.keyrings.filter((item) => item !== candidate);
+          candidate.cleanUp();
+        }
+      }
+    });
   }
 
   sanitizeUnencryptedKeyringDataInStore() {
