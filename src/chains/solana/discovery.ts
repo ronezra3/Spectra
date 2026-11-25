@@ -1,4 +1,5 @@
 import type { Wallet } from '@wallet-standard/base';
+import { SOLANA_DEVNET_NETWORK } from '@/chains/network';
 import { registerWallet } from '@wallet-standard/wallet';
 import { EXPERIMENTAL_WALLET_ICON } from './experimentalIcon';
 
@@ -11,7 +12,7 @@ const experimentalWallet: Wallet = Object.freeze({
   version: '1.0.0',
   name: 'OmniWallet (experimental)',
   icon: EXPERIMENTAL_WALLET_ICON,
-  chains: Object.freeze(['solana:devnet'] as const),
+  chains: Object.freeze([SOLANA_DEVNET_NETWORK.id] as const),
   accounts: Object.freeze([]),
   features: Object.freeze({
     'standard:connect': Object.freeze({
