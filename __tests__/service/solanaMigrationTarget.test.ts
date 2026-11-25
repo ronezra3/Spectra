@@ -48,6 +48,7 @@ import {
 } from 'background/service/solanaVault';
 import * as passwordUtils from 'background/utils/password';
 import eventBus from '@/eventBus';
+import { OrderedStateWriter } from '@/background/service/keyring/orderedStateWriter';
 class MemoryStorage implements SolanaVaultStorage {
   value: string | null = null;
   async read() {
@@ -61,9 +62,10 @@ class MemoryStorage implements SolanaVaultStorage {
 }
 const phrase =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-async function setup() {
+async function setup(withFlusher = true) {
   const target = new KeyringService();
   target.loadStore({});
+  if (withFlusher) target.setPersistenceFlusher(async () => undefined);
   await target.boot('target-test-password');
   const evm = await target.addNewKeyring('Simple Key Pair', [
     'c87509a1c067bbde78beb793e6fa76530b6382a4c0241e5e4a9ec0a0f44dc0d3',
@@ -192,6 +194,117 @@ test('retains the candidate when notification fails after the target update', as
   expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
   expect(storage.value).toBe(originalSource);
   jest.restoreAllMocks();
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
+test('requires a storage acknowledger before modifying the target', async () => {
+  const { target, source, storage } = await setup(false);
+  const oldTarget = target.store.getState().vault;
+  const oldSource = storage.value;
+  await expect(
+    source.withAuthenticatedMigrationSnapshot(
+      'source-test-password',
+      (snapshot, check) =>
+        target
+          .importSolanaMigrationSnapshot(snapshot, check)
+          .then(() => undefined)
+    )
+  ).rejects.toThrow('acknowledgement unavailable');
+  expect(target.store.getState().vault).toBe(oldTarget);
+  expect(storage.value).toBe(oldSource);
+  expect(await target.getSolanaAccounts()).toEqual([]);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
+test('waits for storage acknowledgement before reporting success', async () => {
+  const { target, source, solanaAddress } = await setup();
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  target.setPersistenceFlusher(async () => {
+    entered();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+  });
+  let completed = false;
+  const pending = source.withAuthenticatedMigrationSnapshot(
+    'source-test-password',
+    (snapshot, check) =>
+      target.importSolanaMigrationSnapshot(snapshot, check).then(() => {
+        completed = true;
+      })
+  );
+  await started;
+  expect(completed).toBe(false);
+  release();
+  await pending;
+  expect(completed).toBe(true);
+  expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
+test('failed storage acknowledgement retains source and reports an uncertain outcome', async () => {
+  const { target, source, storage, solanaAddress } = await setup();
+  const oldSource = storage.value;
+  target.setPersistenceFlusher(async () => {
+    throw new Error('storage failed');
+  });
+  await expect(
+    source.withAuthenticatedMigrationSnapshot(
+      'source-test-password',
+      (snapshot, check) =>
+        target
+          .importSolanaMigrationSnapshot(snapshot, check)
+          .then(() => undefined)
+    )
+  ).rejects.toThrow('storage failed');
+  expect(storage.value).toBe(oldSource);
+  expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
+test('waits for the subscribed ordered storage writer with the updated encrypted state', async () => {
+  const { target, source } = await setup(false);
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  let written: any;
+  const writer = new OrderedStateWriter<any>(async (state) => {
+    entered();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    written = state;
+  });
+  target.store.subscribe((value) => {
+    void writer.enqueue(value).catch(() => undefined);
+  });
+  target.setPersistenceFlusher(() => writer.flush());
+  let completed = false;
+  const pending = source.withAuthenticatedMigrationSnapshot(
+    'source-test-password',
+    (snapshot, check) =>
+      target.importSolanaMigrationSnapshot(snapshot, check).then(() => {
+        completed = true;
+      })
+  );
+  await started;
+  expect(completed).toBe(false);
+  release();
+  await pending;
+  expect(written.vault).toBe(target.store.getState().vault);
+  expect(JSON.stringify(written.unencryptedKeyringData)).not.toContain(
+    SOLANA_KEYRING_TYPE
+  );
   await target.setLocked();
   source.lock();
 }, 30000);
