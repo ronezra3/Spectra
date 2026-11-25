@@ -155,6 +155,7 @@ const ExperimentalSolanaWallet = ({
           (!status.selected && view === 'overview') ? (
             <SolanaOnboarding
               initialStatus={status}
+              onPendingChange={setMigrationPending}
               onDone={async () => {
                 await refresh();
                 setView('overview');
@@ -241,15 +242,9 @@ const ExperimentalSolanaWallet = ({
                       </li>
                     ))}
                   </ul>
-                  {status.custody === 'shared' ? (
-                    <p>
-                      Adding shared Solana test accounts is not available yet.
-                    </p>
-                  ) : (
-                    <Button type="primary" onClick={() => setView('setup')}>
-                      Add test account
-                    </Button>
-                  )}
+                  <Button type="primary" onClick={() => setView('setup')}>
+                    Add test account
+                  </Button>
                   {status.custody !== 'shared' && status.selected && (
                     <Button
                       disabled={busy}
