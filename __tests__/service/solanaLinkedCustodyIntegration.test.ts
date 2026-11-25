@@ -75,7 +75,8 @@ test('derives and signs with a linked test account, then restores the associatio
   };
   const solanaAddress = await solanaWalletService.createNativeTestFromCurrentEvm(
     'test-password',
-    0
+    0,
+    address
   );
   expect(solanaAddress).toBe('HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk');
   const message = new Uint8Array([1, 2, 3]);

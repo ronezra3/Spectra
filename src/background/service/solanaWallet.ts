@@ -302,12 +302,18 @@ class SolanaWalletService {
   /** Background-only: derive from the currently selected EVM HD account. */
   async createNativeTestFromCurrentEvm(
     password: string,
-    index: number
+    index: number,
+    expectedAddress: string
   ): Promise<string> {
     this.requireWalletUnlocked();
     if (this.custodyCreationPending) throw new Error('Solana setup is pending');
     const source = preferenceService.getCurrentAccount();
-    if (!source || source.type !== KEYRING_TYPE.HdKeyring)
+    if (
+      !source ||
+      source.type !== KEYRING_TYPE.HdKeyring ||
+      typeof expectedAddress !== 'string' ||
+      source.address.toLowerCase() !== expectedAddress.toLowerCase()
+    )
       throw new Error('Selected EVM account has no supported seed');
     this.custodyCreationPending = true;
     try {

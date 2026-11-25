@@ -143,7 +143,11 @@ beforeEach(() => {
 test('requires an authenticated selected EVM HD account to create a linked Solana account', async () => {
   mockCiphertext = null;
   await expect(
-    solanaWalletService.createNativeTestFromCurrentEvm('test-password', 0)
+    solanaWalletService.createNativeTestFromCurrentEvm(
+      'test-password',
+      0,
+      '0x0000000000000000000000000000000000000001'
+    )
   ).rejects.toThrow('no supported seed');
   mockCurrentAccount = {
     address: '0x0000000000000000000000000000000000000001',
@@ -151,11 +155,26 @@ test('requires an authenticated selected EVM HD account to create a linked Solan
     brandName: 'HD Key Tree',
   };
   await expect(
-    solanaWalletService.createNativeTestFromCurrentEvm('wrong', 0)
+    solanaWalletService.createNativeTestFromCurrentEvm(
+      'test-password',
+      0,
+      '0x0000000000000000000000000000000000000002'
+    )
+  ).rejects.toThrow('no supported seed');
+  await expect(
+    solanaWalletService.createNativeTestFromCurrentEvm(
+      'wrong',
+      0,
+      '0x0000000000000000000000000000000000000001'
+    )
   ).rejects.toThrow('wrong password');
   expect(mockCreateLinked).not.toHaveBeenCalled();
   await expect(
-    solanaWalletService.createNativeTestFromCurrentEvm('test-password', 0)
+    solanaWalletService.createNativeTestFromCurrentEvm(
+      'test-password',
+      0,
+      '0x0000000000000000000000000000000000000001'
+    )
   ).resolves.toBe(mockAddedAddress);
   expect(mockCreateLinked).toHaveBeenCalledWith(
     mockCurrentAccount.address,
@@ -184,7 +203,11 @@ test('rejects linked creation if the selected EVM account changes during persist
     return mockAddedAddress;
   });
   await expect(
-    solanaWalletService.createNativeTestFromCurrentEvm('test-password', 0)
+    solanaWalletService.createNativeTestFromCurrentEvm(
+      'test-password',
+      0,
+      '0x0000000000000000000000000000000000000001'
+    )
   ).rejects.toThrow('expired');
   expect(solanaWalletService.getSelectedAccount()).toBeNull();
 });
