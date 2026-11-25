@@ -87,3 +87,34 @@ test('native custody metadata round-trips without impersonating a migration', as
   keyring.cleanUp();
   restored.cleanUp();
 });
+
+test('round-trips explicit account associations and rejects orphaned or duplicate links', async () => {
+  const keyring = new SolanaKeyring();
+  await keyring.deserialize({ version: 1, secretKeys: [testSecret] });
+  const association = {
+    evmAddress: '0x0000000000000000000000000000000000000001',
+    solanaAddress: testAddress,
+    accountIndex: 0,
+  };
+  await keyring.associateEvmAccount(association);
+  await expect(keyring.associateEvmAccount(association)).rejects.toThrow(
+    'association'
+  );
+  const data = await keyring.serialize();
+  const restored = new SolanaKeyring();
+  await restored.deserialize(data);
+  expect(restored.getEvmAssociations()).toEqual([association]);
+  await expect(
+    restored.deserialize({
+      ...data,
+      associations: [{ ...association, solanaAddress: 'other' }],
+    })
+  ).rejects.toThrow('Invalid vault');
+  await expect(
+    restored.deserialize({ ...data, associations: [association, association] })
+  ).rejects.toThrow('Invalid vault');
+  expect(restored.getEvmAssociations()).toEqual([association]);
+  expect(await restored.getAccounts()).toEqual([testAddress]);
+  keyring.cleanUp();
+  restored.cleanUp();
+});

@@ -4,6 +4,13 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { SOLANA_KEYRING_TYPE } from './solanaKeyringType';
 import { deriveSolanaAccountSecret } from './solanaDerivation';
 
+/** Public identities; only an authenticated caller may establish the link. */
+export type SolanaEvmAssociation = Readonly<{
+  evmAddress: string;
+  solanaAddress: string;
+  accountIndex: number;
+}>;
+
 /** Sensitive serialized data: pass only to the encrypted keyring vault. */
 export type SerializedSolanaKeyring = Readonly<{
   version: 1;
@@ -12,6 +19,7 @@ export type SerializedSolanaKeyring = Readonly<{
     | 'legacy-devnet-v1'
     | Readonly<{ kind: 'legacy-devnet-v2'; sourceFingerprint: string }>;
   custody?: 'native-devnet-v1';
+  associations?: readonly SolanaEvmAssociation[];
 }>;
 
 /**
@@ -27,6 +35,7 @@ export class SolanaKeyring {
   private closed = false;
   private migration: SerializedSolanaKeyring['migration'];
   private custody: SerializedSolanaKeyring['custody'];
+  private associations: SolanaEvmAssociation[] = [];
 
   private assertOpen(): void {
     if (this.closed) throw new Error('Solana keyring is locked');
@@ -117,7 +126,46 @@ export class SolanaKeyring {
       secretKeys: this.secrets.map(bytesToHex),
       ...(this.migration ? { migration: this.migration } : {}),
       ...(this.custody ? { custody: this.custody } : {}),
+      ...(this.associations.length
+        ? {
+            associations: this.associations.map((association) => ({
+              ...association,
+            })),
+          }
+        : {}),
     };
+  }
+
+  /** Background-only metadata; caller must prove common derivation and consent. */
+  async associateEvmAccount(association: SolanaEvmAssociation): Promise<void> {
+    this.assertOpen();
+    const accounts = await this.getAccounts();
+    this.assertOpen();
+    if (
+      !/^0x[0-9a-f]{40}$/i.test(association.evmAddress) ||
+      !Number.isSafeInteger(association.accountIndex) ||
+      association.accountIndex < 0 ||
+      association.accountIndex >= 0x80000000 ||
+      !accounts.includes(association.solanaAddress) ||
+      this.associations.some(
+        (entry) => entry.solanaAddress === association.solanaAddress
+      )
+    )
+      throw new Error('Invalid Solana account association');
+    this.associations.push(
+      Object.freeze({
+        evmAddress: association.evmAddress,
+        solanaAddress: association.solanaAddress,
+        accountIndex: association.accountIndex,
+      })
+    );
+  }
+
+  getEvmAssociations(): readonly SolanaEvmAssociation[] {
+    this.assertOpen();
+    return this.associations.map((association) =>
+      Object.freeze({ ...association })
+    );
   }
 
   /** Background-only metadata, persisted inside the encrypted keyring data. */
@@ -164,6 +212,9 @@ export class SolanaKeyring {
       data.version !== 1 ||
       !Array.isArray(data.secretKeys) ||
       data.secretKeys.length > 1000 ||
+      (data.associations !== undefined &&
+        (!Array.isArray(data.associations) ||
+          data.associations.length > 1000)) ||
       (data.custody !== undefined && data.custody !== 'native-devnet-v1') ||
       (data.custody !== undefined && data.migration !== undefined) ||
       (data.migration !== undefined &&
@@ -177,6 +228,7 @@ export class SolanaKeyring {
       throw new Error('Invalid vault');
     }
     const restored: Uint8Array[] = [];
+    const associations: SolanaEvmAssociation[] = [];
     try {
       const seen = new Set<string>();
       for (const value of data.secretKeys) {
@@ -189,6 +241,30 @@ export class SolanaKeyring {
         if (seen.has(address)) throw new Error('Invalid vault');
         seen.add(address);
       }
+      const associated = new Set<string>();
+      for (const value of data.associations ?? []) {
+        if (
+          !value ||
+          typeof value !== 'object' ||
+          typeof value.evmAddress !== 'string' ||
+          !/^0x[0-9a-f]{40}$/i.test(value.evmAddress) ||
+          typeof value.solanaAddress !== 'string' ||
+          !seen.has(value.solanaAddress) ||
+          associated.has(value.solanaAddress) ||
+          !Number.isSafeInteger(value.accountIndex) ||
+          value.accountIndex < 0 ||
+          value.accountIndex >= 0x80000000
+        )
+          throw new Error('Invalid vault');
+        associated.add(value.solanaAddress);
+        associations.push(
+          Object.freeze({
+            evmAddress: value.evmAddress,
+            solanaAddress: value.solanaAddress,
+            accountIndex: value.accountIndex,
+          })
+        );
+      }
     } catch {
       restored.forEach((secret) => secret.fill(0));
       throw new Error('Invalid vault');
@@ -200,6 +276,7 @@ export class SolanaKeyring {
         ? Object.freeze({ ...data.migration })
         : data.migration;
     this.custody = data.custody;
+    this.associations = associations;
   }
 
   cleanUp(): void {
@@ -207,6 +284,7 @@ export class SolanaKeyring {
     this.secrets = [];
     this.migration = undefined;
     this.custody = undefined;
+    this.associations = [];
     this.closed = true;
   }
 }
