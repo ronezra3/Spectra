@@ -210,6 +210,7 @@ export class KeyringService extends EventEmitter {
   private restoringKeyrings = false;
   private persistenceQueue: Promise<void> = Promise.resolve();
   private persistenceFlusher: (() => Promise<void>) | null = null;
+  private solanaMigrationAcknowledged = false;
 
   constructor() {
     super();
@@ -226,6 +227,8 @@ export class KeyringService extends EventEmitter {
 
   loadStore(initState) {
     this.store = new ObservableStore(initState);
+    // The encrypted migration marker, if present, will be checked on unlock.
+    this.solanaMigrationAcknowledged = true;
   }
 
   /** Wired by the background storage owner, not callable from a page provider. */
@@ -1245,12 +1248,14 @@ export class KeyringService extends EventEmitter {
       // Avoid guessing whether an existing destination represents the source.
       if (this.getKeyringsByType(SOLANA_KEYRING_TYPE).length)
         throw new Error('Solana destination already exists');
+      this.solanaMigrationAcknowledged = false;
       const candidate = new SolanaKeyring();
       let committed = false;
       try {
         await candidate.deserialize(await snapshot.serialize());
         const addresses = await candidate.getAccounts();
         if (!addresses.length) throw new Error('Solana source is empty');
+        candidate.markMigratedFromLegacyDevnet();
         if (!this.isUnlocked() || generation !== this.lockGeneration)
           throw new Error('Wallet is locked');
         assertSourceCurrent();
@@ -1269,6 +1274,7 @@ export class KeyringService extends EventEmitter {
         if (!this.isUnlocked() || generation !== this.lockGeneration)
           throw new Error('Wallet is locked');
         assertSourceCurrent();
+        this.solanaMigrationAcknowledged = true;
         return addresses;
       } finally {
         if (!committed) {
@@ -1277,6 +1283,18 @@ export class KeyringService extends EventEmitter {
         }
       }
     });
+  }
+
+  /** Selection hint only; callers must still enforce account and approval rules. */
+  hasAcknowledgedSolanaMigration(): boolean {
+    const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);
+    return (
+      this.isUnlocked() &&
+      this.solanaMigrationAcknowledged &&
+      keyrings.length === 1 &&
+      keyrings[0] instanceof SolanaKeyring &&
+      keyrings[0].isMigratedFromLegacyDevnet()
+    );
   }
 
   sanitizeUnencryptedKeyringDataInStore() {

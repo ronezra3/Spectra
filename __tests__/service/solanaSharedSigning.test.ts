@@ -114,3 +114,14 @@ test('rejects ambiguous duplicate account references', async () => {
   ).rejects.toThrow('unavailable');
   await service.setLocked();
 });
+
+test('an unrelated Solana keyring is not considered a migrated vault', async () => {
+  const service = new KeyringService();
+  service.loadStore({});
+  service.memStore.updateState({ isUnlocked: true });
+  const keyring = new SolanaKeyring();
+  await keyring.addAccounts();
+  service.keyrings.push(keyring);
+  expect(service.hasAcknowledgedSolanaMigration()).toBe(false);
+  await service.setLocked();
+});
