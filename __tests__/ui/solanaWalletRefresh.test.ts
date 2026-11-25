@@ -5,8 +5,9 @@ import { Simulate } from 'react-dom/test-utils';
 import SolanaWallet from '@/ui/views/ExperimentalSolanaWallet';
 
 jest.mock('@/ui/views/ExperimentalSolanaWallet/style.less', () => ({}));
+const mockPush = jest.fn();
 jest.mock('react-router-dom', () => ({
-  useHistory: () => ({ push: jest.fn() }),
+  useHistory: () => ({ push: mockPush }),
 }));
 jest.mock('antd', () => ({
   Button: ({ children, onClick, disabled }: any) =>
@@ -234,6 +235,37 @@ test('labels only accounts verified for the selected EVM account', async () => {
     )!;
     act(() => Simulate.click(button));
     expect(container.textContent).toContain('Linked to selected EVM account');
+  } finally {
+    act(() => root.unmount());
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
+  }
+});
+
+test('can open the existing wallet account chooser from Solana accounts', async () => {
+  const previous = (globalThis as any).IS_REACT_ACT_ENVIRONMENT;
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const evmAccount = {
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+    brandName: 'HD Key Tree',
+  };
+  mockPush.mockClear();
+  mockWallet.experimentalSolanaSelectAssociated.mockResolvedValue('selected');
+  try {
+    await act(async () =>
+      root.render(createElement(SolanaWallet, { evmAccount }))
+    );
+    const accounts = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'Accounts'
+    )!;
+    act(() => Simulate.click(accounts));
+    const change = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'Change wallet account'
+    )!;
+    act(() => Simulate.click(change));
+    expect(mockPush).toHaveBeenCalledWith('/switch-address');
   } finally {
     act(() => root.unmount());
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
