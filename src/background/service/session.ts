@@ -1,5 +1,6 @@
 import { permissionService } from 'background/service';
 import PortMessage from '@/utils/message/portMessage';
+import { solanaConnectionSession } from './solanaConnection';
 
 export interface SessionProp {
   origin: string;
@@ -89,6 +90,11 @@ const broadcastEvent = (
   origin?: string,
   ignorePermission?: boolean
 ) => {
+  // EVM account/chain notifications are session boundaries for pending
+  // Solana consent too; never carry an approval across an identity change.
+  if (ev === 'accountsChanged' || ev === 'chainChanged') {
+    solanaConnectionSession.invalidate();
+  }
   let sessions: { key: string; data: Session }[] = [];
 
   sessionMap.forEach((session, key) => {

@@ -21,6 +21,9 @@ const SECRET_METHODS = new Set([
   'addWhitelist',
   'toggleWhitelist',
   'setBiometricUnlock',
+  'experimentalSolanaCreate',
+  'experimentalSolanaUnlock',
+  'experimentalSolanaImport',
 ]);
 // requestKeyring calls straight into a keyring; the software ones hold the
 // mnemonic or key.

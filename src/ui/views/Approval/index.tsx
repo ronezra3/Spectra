@@ -54,8 +54,15 @@ const Approval: React.FC<{
     resetCurrentTx();
     setApproval(approval);
     document.title = 'Rabby Wallet Notification';
-    const account = approval.data.account || (await wallet.getCurrentAccount());
-    if (!account) {
+    const isSolanaApproval = [
+      'SolanaConnect',
+      'SolanaSignMessage',
+      'SolanaSignTransfer',
+    ].includes(approval.data.approvalComponent);
+    const account = isSolanaApproval
+      ? null
+      : approval.data.account || (await wallet.getCurrentAccount());
+    if (!account && !isSolanaApproval) {
       // Trusted loading boundary: rejects the exact approval just read, not whatever's current later.
       wallet.rejectApprovalFor({
         approval: {

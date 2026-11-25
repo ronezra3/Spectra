@@ -1,3 +1,4 @@
+import { getExperimentalSolanaWallet } from '../service/solanaRuntime';
 import {
   stripHexPrefix,
   isValidPrivate,
@@ -509,6 +510,22 @@ function getDesktopPageType(path: string): DesktopPageType {
 export class WalletController extends BaseController {
   openapi = openapiService;
   fakeTestnetOpenapi = fakeTestnetOpenapi;
+
+  // Extension-owned UI only. The runtime gate excludes custody in production.
+  experimentalSolanaStatus = () => getExperimentalSolanaWallet().status();
+  experimentalSolanaCreate = (password: string) =>
+    getExperimentalSolanaWallet().create(password);
+  experimentalSolanaUnlock = (password: string) =>
+    getExperimentalSolanaWallet().unlock(password);
+  experimentalSolanaLock = () => getExperimentalSolanaWallet().lock();
+  experimentalSolanaImport = (
+    password: string,
+    mnemonic: string,
+    index: number
+  ) =>
+    getExperimentalSolanaWallet().importTestMnemonic(password, mnemonic, index);
+  experimentalSolanaSelect = (address: string) =>
+    getExperimentalSolanaWallet().selectAccount(address);
 
   /* wallet */
   boot = bootWallet;

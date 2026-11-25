@@ -155,3 +155,22 @@ describe('errors from other methods', () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 });
+
+describe('experimental Solana credential redaction', () => {
+  test.each([
+    'experimentalSolanaCreate',
+    'experimentalSolanaUnlock',
+    'experimentalSolanaImport',
+  ])('withholds secret-bearing errors for %s', (method) => {
+    const sentry = require('@sentry/browser');
+    jest.clearAllMocks();
+    reportMessageError(new TypeError('disposable-test-secret'), {
+      method,
+      params: ['disposable-test-secret'],
+    });
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+    const error = sentry.captureException.mock.calls[0][0] as Error;
+    expect(error.message).not.toContain('disposable-test-secret');
+    expect(error.stack).not.toContain('disposable-test-secret');
+  });
+});

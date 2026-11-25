@@ -57,6 +57,11 @@ const ExperimentalSolanaReadOnly = () => {
   return (
     <main style={{ padding: 24, maxWidth: 560, margin: 'auto' }}>
       <h1>Solana address viewer</h1>
+      <p>
+        <a href="#/experimental/solana-wallet">
+          Open experimental Solana test wallet
+        </a>
+      </p>
       <p>Experimental, read-only and temporary. Use test addresses only.</p>
       <p>
         Enter a public address only. Never enter a seed phrase or private key.

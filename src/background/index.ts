@@ -37,6 +37,23 @@ import browser from 'webextension-polyfill';
 import BigNumber from 'bignumber.js';
 import { walletController } from './controller';
 import { routeProviderRequest } from './controller/providerRouter';
+import {
+  solanaConnectionSession,
+  solanaSigningSession,
+} from './service/solanaConnection';
+import {
+  getExperimentalSolanaWallet,
+  lockExperimentalSolanaWallet,
+} from './service/solanaRuntime';
+import { SolanaConnectController } from './controller/solanaConnect';
+import { SolanaSignMessageController } from './controller/solanaSignMessage';
+import { v4 as solanaRequestId } from 'uuid';
+import {
+  rejectSolanaApproval,
+  requestSolanaConnectApproval,
+  requestSolanaMessageApproval,
+  requestSolanaTransferApproval,
+} from './controller/solanaConnectApproval';
 import createSubscription from './controller/provider/subscriptionManager';
 import getOwnMethod from './utils/getOwnMethod';
 import {
@@ -285,7 +302,18 @@ restoreAppState().catch((e) => {
   backgroundReadyGate.fail(ethErrors.provider.disconnected());
 });
 {
+  solanaConnectionSession.subscribe((origin) => {
+    void rejectSolanaApproval(origin).catch(() => undefined);
+  });
+  keyringService.on('lock', () => {
+    lockExperimentalSolanaWallet();
+    solanaConnectionSession.invalidate();
+    void rejectSolanaApproval().catch(() => undefined);
+  });
   keyringService.on('unlock', () => {
+    lockExperimentalSolanaWallet();
+    solanaConnectionSession.invalidate();
+    void rejectSolanaApproval().catch(() => undefined);
     walletController.syncMainnetChainList();
     contactBookService.detectWhiteListCex();
     perpsService.unlockAgentWallets();
@@ -325,6 +353,151 @@ keyringService.on('resetPassword', async () => {
 
 // for page provider
 browser.runtime.onConnect.addListener((port) => {
+  if (
+    process.env.NODE_ENV === 'development' &&
+    process.env.OMNI_SOLANA_DISCOVERY === '1' &&
+    process.env.OMNI_SOLANA_READONLY === '1' &&
+    port.name === 'omni-solana-v1'
+  ) {
+    if (
+      port.sender?.id !== browser.runtime.id ||
+      port.sender?.tab?.id === undefined ||
+      !port.sender?.url
+    ) {
+      port.disconnect();
+      return;
+    }
+    let origin: string;
+    try {
+      const sender = new URL(port.sender.url);
+      if (!['https:', 'http:'].includes(sender.protocol))
+        throw new Error('Invalid origin');
+      origin = sender.origin;
+    } catch {
+      port.disconnect();
+      return;
+    }
+    const pm = new PortMessage(port);
+    // Keep Solana's transaction SDK out of the default production graph.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const transferModule = require('./controller/solanaSignTransfer') as typeof import('./controller/solanaSignTransfer');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sendModule = require('./controller/solanaSendTransfer') as typeof import('./controller/solanaSendTransfer');
+    const wallet = getExperimentalSolanaWallet();
+    let portActive = true;
+    const isSolanaContextActive = () => portActive && wallet.isUnlocked();
+    const controller = new SolanaConnectController({
+      isUnlocked: isSolanaContextActive,
+      getSelectedAccount: () => wallet.getSelectedAccount(),
+      requestApproval: (context) => requestSolanaConnectApproval(context),
+      newId: solanaRequestId,
+      permissions: solanaConnectionSession,
+    });
+    const signing = new SolanaSignMessageController({
+      isUnlocked: isSolanaContextActive,
+      getSelectedAccount: () => wallet.getSelectedAccount(),
+      permissions: solanaConnectionSession,
+      approvals: solanaSigningSession,
+      newId: solanaRequestId,
+      requestApproval: requestSolanaMessageApproval,
+      sign: (address, message) => wallet.signMessage(address, message),
+    });
+    const transferSigning = new transferModule.SolanaSignTransferController({
+      isUnlocked: isSolanaContextActive,
+      getSelectedAccount: () => wallet.getSelectedAccount(),
+      permissions: solanaConnectionSession,
+      approvals: solanaSigningSession,
+      newId: solanaRequestId,
+      requestApproval: requestSolanaTransferApproval,
+      sign: (address, message) => wallet.signMessage(address, message),
+    });
+    const transferSending = new sendModule.SolanaSendTransferController({
+      isUnlocked: isSolanaContextActive,
+      getSelectedAccount: () => wallet.getSelectedAccount(),
+      permissions: solanaConnectionSession,
+      approvals: solanaSigningSession,
+      signer: transferSigning,
+    });
+    const unsubscribe = solanaConnectionSession.subscribe((revokedOrigin) => {
+      if (revokedOrigin === null || revokedOrigin === origin) {
+        pm.send('message', { event: 'accountsChanged', accounts: [] });
+      }
+    });
+    pm.listen(async (data: unknown) => {
+      if (!backgroundReadyGate.isOpen) throw new Error('Wallet is not ready');
+      if (!data || typeof data !== 'object' || Array.isArray(data))
+        throw new Error('Invalid Solana request');
+      const request = data as {
+        method?: unknown;
+        silent?: unknown;
+        account?: unknown;
+        messageHex?: unknown;
+        transactionHex?: unknown;
+      };
+      if (request.method === 'connect') {
+        if (
+          request.silent !== undefined &&
+          typeof request.silent !== 'boolean'
+        ) {
+          throw new Error('Invalid connection options');
+        }
+        return controller.connect(origin, request.silent === true);
+      }
+      if (request.method === 'signMessage') {
+        if (
+          typeof request.account !== 'string' ||
+          typeof request.messageHex !== 'string'
+        ) {
+          throw new Error('Invalid Solana signing request');
+        }
+        return signing.sign(origin, request.account, request.messageHex);
+      }
+      if (request.method === 'signTransaction') {
+        if (
+          typeof request.account !== 'string' ||
+          typeof request.transactionHex !== 'string'
+        ) {
+          throw new Error('Invalid Solana transaction request');
+        }
+        return transferSigning.sign(
+          origin,
+          request.account,
+          request.transactionHex
+        );
+      }
+      if (request.method === 'signAndSendTransaction') {
+        if (
+          typeof request.account !== 'string' ||
+          typeof request.transactionHex !== 'string'
+        ) {
+          throw new Error('Invalid Solana transaction request');
+        }
+        return transferSending.send(
+          origin,
+          request.account,
+          request.transactionHex
+        );
+      }
+      if (request.method === 'disconnect') {
+        controller.disconnect(origin);
+        return null;
+      }
+      throw new Error('Unsupported Solana method');
+    });
+    port.onDisconnect.addListener(() => {
+      portActive = false;
+      unsubscribe();
+      // A vanished tab must not leave a pending request or origin grant alive.
+      controller.disconnect(origin);
+      solanaSigningSession.invalidate();
+      void rejectSolanaApproval(origin).catch(() => undefined);
+    });
+    return;
+  }
+  if (port.name === 'omni-solana-v1') {
+    port.disconnect();
+    return;
+  }
   // perpsLive owns this port; bypass the generic page-provider routing below
   if (port.name === PERPS_LIVE_PORT_NAME) {
     // Fail-closed: only this extension's own content-scripts (which always run

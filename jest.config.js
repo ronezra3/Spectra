@@ -10,6 +10,8 @@ const IGNORE_MODULES = [
   'uuid',
   '@ethereumjs',
   'dom-align',
+  'micro-key-producer',
+  'micro-packed',
 ].join('|');
 /*
  * For a detailed explanation regarding each configuration property and type check, visit:
