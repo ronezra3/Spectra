@@ -45,6 +45,7 @@ import {
 let SolanaWallet: React.ComponentType<{
   onExit: () => void;
   onPendingChange: (pending: boolean) => void;
+  evmAccount: { address: string; type: string; brandName: string } | null;
 }> | null = null;
 if (
   process.env.NODE_ENV === 'development' &&
@@ -265,6 +266,7 @@ const Dashboard = () => {
             <SolanaWallet
               onExit={() => selectWalletView('evm')}
               onPendingChange={setSolanaPending}
+              evmAccount={currentAccount || null}
             />
           ) : (
             <>

@@ -600,6 +600,8 @@ export class WalletController extends BaseController {
     );
   experimentalSolanaSelect = (address: string) =>
     getExperimentalSolanaWallet().selectAccount(address);
+  experimentalSolanaSelectAssociated = (evmAddress: string) =>
+    getExperimentalSolanaWallet().selectAssociatedAccountForEvm(evmAddress);
 
   /* wallet */
   boot = bootWallet;
