@@ -1,5 +1,9 @@
 import keyringService from './keyring';
 import { SOLANA_DEVNET_NETWORK } from '@/chains/network';
+import {
+  SolanaWalletAccount,
+  walletAccountFromSolana,
+} from '@/chains/walletAccount';
 import { solanaConnectionSession } from './solanaConnection';
 import { rejectSolanaApproval } from '../controller/solanaConnectApproval';
 import { SolanaVault } from './solanaVault';
@@ -31,9 +35,17 @@ class SolanaWalletService {
     return keyringService.isUnlocked() && this.vault.isUnlocked();
   }
 
-  getSelectedAccount(): SolanaSelectedAccount | null {
+  /** Public account identity; does not expose keys or grant permissions. */
+  getSelectedWalletAccount(): SolanaWalletAccount | null {
     return this.isUnlocked() && this.selected
-      ? { address: this.selected, cluster: SOLANA_DEVNET_NETWORK.id }
+      ? walletAccountFromSolana(this.selected)
+      : null;
+  }
+
+  getSelectedAccount(): SolanaSelectedAccount | null {
+    const account = this.getSelectedWalletAccount();
+    return account
+      ? { address: account.address, cluster: SOLANA_DEVNET_NETWORK.id }
       : null;
   }
 
