@@ -18,6 +18,7 @@ export interface SolanaVaultStorage {
  */
 export class SolanaVault {
   private keyring: SolanaKeyring | null = null;
+  private migrationSnapshot: SolanaKeyring | null = null;
   private generation = 0;
   private busy = false;
 
@@ -25,6 +26,8 @@ export class SolanaVault {
 
   lock(): void {
     this.generation += 1;
+    this.migrationSnapshot?.cleanUp();
+    this.migrationSnapshot = null;
     this.keyring?.cleanUp();
     this.keyring = null;
   }
@@ -139,6 +142,52 @@ export class SolanaVault {
     return this.mutate(password, (keyring) =>
       keyring.addAccountFromMnemonic(mnemonic, accountIndex)
     );
+  }
+
+  /**
+   * Background-only authenticated snapshot for a future migration. The caller
+   * must not expose the keyring to UI or providers. This is not a cross-store
+   * transaction; a completed destination write cannot be undone here.
+   */
+  async withAuthenticatedMigrationSnapshot(
+    password: string,
+    use: (snapshot: SolanaKeyring, assertCurrent: () => void) => Promise<void>
+  ): Promise<void> {
+    this.checkPassword(password);
+    const generation = this.enter();
+    const candidate = new SolanaKeyring();
+    try {
+      const active = this.keyring;
+      if (!active) throw new Error('Solana vault is locked');
+      const ciphertext = await this.storage.read();
+      this.check(generation);
+      if (!ciphertext) throw new Error('Solana vault does not exist');
+      let serialized: unknown;
+      try {
+        serialized = await decrypt(password, ciphertext);
+      } catch {
+        throw new Error('Solana vault decryption failed');
+      }
+      this.check(generation);
+      await candidate.deserialize(serialized);
+      const assertCurrent = () => {
+        this.check(generation);
+        if (active !== this.keyring || this.migrationSnapshot !== candidate)
+          throw new Error('Solana vault is locked');
+      };
+      this.migrationSnapshot = candidate;
+      assertCurrent();
+      await use(candidate, assertCurrent);
+      assertCurrent();
+      const currentCiphertext = await this.storage.read();
+      assertCurrent();
+      if (currentCiphertext !== ciphertext)
+        throw new Error('Solana vault changed');
+    } finally {
+      if (this.migrationSnapshot === candidate) this.migrationSnapshot = null;
+      candidate.cleanUp();
+      this.busy = false;
+    }
   }
 
   private async mutate(
