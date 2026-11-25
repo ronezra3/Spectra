@@ -1366,7 +1366,11 @@ export class KeyringService extends EventEmitter {
         throw new Error('Wallet is locked');
       assertSourceCurrent();
       const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);
-      if (!this.hasAcknowledgedSolanaMigration() || keyrings.length !== 1)
+      if (
+        (!this.hasAcknowledgedSolanaMigration() &&
+          !this.hasAcknowledgedNativeSolanaCustody()) ||
+        keyrings.length !== 1
+      )
         throw new Error('Shared Solana account unavailable');
       const original = keyrings[0] as SolanaKeyring;
       const position = this.keyrings.indexOf(original);

@@ -4,7 +4,8 @@ const mockAddress = 'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk';
 let mockUnlocked = false;
 let mockTargetAccounts: string[] = [];
 let mockFingerprint: string | null = null;
-let mockCiphertext = 'encrypted';
+let mockCiphertext: string | null = 'encrypted';
+let mockNativeCustody = false;
 const mockImportSnapshot = jest.fn(async (fingerprint: string) => {
   mockFingerprint = fingerprint;
   mockTargetAccounts = [mockAddress];
@@ -24,6 +25,7 @@ jest.mock('@/background/service/keyring', () => ({
     getSolanaAccounts: async () => mockTargetAccounts,
     getKeyringsByType: () => [],
     getSolanaMigrationSourceFingerprint: () => mockFingerprint,
+    hasAcknowledgedNativeSolanaCustody: () => mockNativeCustody,
     verifyPassword: async (password: string) => {
       if (password !== 'test-password') throw new Error('wrong password');
     },
@@ -94,12 +96,32 @@ jest.mock('@/background/controller/solanaConnectApproval', () => ({
 
 beforeEach(() => {
   mockFingerprint = null;
+  mockNativeCustody = false;
   mockCiphertext = 'encrypted';
   mockTargetAccounts = [];
   mockImportSnapshot.mockClear();
   mockSharedSign.mockClear();
   mockAddShared.mockClear();
   solanaWalletService.lockForWalletBoundary();
+});
+
+test('uses native shared custody only when no legacy source exists', async () => {
+  mockNativeCustody = true;
+  mockCiphertext = null;
+  mockTargetAccounts = [mockAddress];
+  expect(await solanaWalletService.status()).toMatchObject({
+    custody: 'shared',
+    unlocked: true,
+    accounts: [mockAddress],
+  });
+  expect(solanaWalletService.getSelectedWalletAccount()?.source.kind).toBe(
+    'shared-solana-keyring'
+  );
+  await solanaWalletService.signMessage(mockAddress, new Uint8Array([1]));
+  expect(mockSharedSign).toHaveBeenCalledTimes(1);
+  mockCiphertext = 'unexpected legacy source';
+  await expect(solanaWalletService.status()).rejects.toThrow('reconciliation');
+  expect(solanaWalletService.getSelectedAccount()).toBeNull();
 });
 
 test('authenticates before adding and selecting a shared test account', async () => {
