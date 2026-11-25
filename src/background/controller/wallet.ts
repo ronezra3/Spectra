@@ -540,6 +540,10 @@ export class WalletController extends BaseController {
   experimentalSolanaUnlock = (password: string) =>
     getExperimentalSolanaWallet().unlock(password);
   experimentalSolanaLock = () => getExperimentalSolanaWallet().lock();
+  experimentalSolanaMigrationPreflight = () =>
+    getExperimentalSolanaWallet().migrationPreflight();
+  experimentalSolanaMigrate = (password: string) =>
+    getExperimentalSolanaWallet().migrateTestVault(password);
   experimentalSolanaSend = (
     account: string,
     recipient: string,

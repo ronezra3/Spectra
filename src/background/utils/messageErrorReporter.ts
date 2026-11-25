@@ -24,6 +24,7 @@ const SECRET_METHODS = new Set([
   'experimentalSolanaCreate',
   'experimentalSolanaUnlock',
   'experimentalSolanaImport',
+  'experimentalSolanaMigrate',
 ]);
 // requestKeyring calls straight into a keyring; the software ones hold the
 // mnemonic or key.

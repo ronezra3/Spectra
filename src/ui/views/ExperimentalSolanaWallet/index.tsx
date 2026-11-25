@@ -7,6 +7,7 @@ import { SolanaSend } from './SolanaSend';
 import { SolanaReceive } from './SolanaReceive';
 import { SolanaActivity } from './SolanaActivity';
 import { SolanaOnboarding } from './SolanaOnboarding';
+import { SolanaMigration } from './SolanaMigration';
 import './style.less';
 
 type Status = {
@@ -30,16 +31,23 @@ const ExperimentalSolanaWallet = ({
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
   const [sendPending, setSendPending] = useState(false);
+  const [migrationPending, setMigrationPending] = useState(false);
   const [error, setError] = useState('');
   const [assetRefresh, setAssetRefresh] = useState(0);
   const [view, setView] = useState<
-    'overview' | 'send' | 'receive' | 'activity' | 'accounts' | 'setup'
+    | 'overview'
+    | 'send'
+    | 'receive'
+    | 'activity'
+    | 'accounts'
+    | 'setup'
+    | 'migration'
   >('overview');
   const refreshTimer = useRef<number>();
 
   useEffect(() => {
-    onPendingChange?.(sendPending);
-  }, [sendPending, onPendingChange]);
+    onPendingChange?.(sendPending || migrationPending);
+  }, [sendPending, migrationPending, onPendingChange]);
 
   useEffect(() => () => window.clearTimeout(refreshTimer.current), []);
 
@@ -108,7 +116,7 @@ const ExperimentalSolanaWallet = ({
       <button
         className="solana-wallet__back"
         type="button"
-        disabled={sendPending}
+        disabled={sendPending || migrationPending}
         onClick={() =>
           view === 'overview' || !status?.unlocked
             ? onExit
@@ -195,6 +203,15 @@ const ExperimentalSolanaWallet = ({
                   address={status.selected.address}
                 />
               )}
+              {view === 'migration' && status.custody !== 'shared' && (
+                <SolanaMigration
+                  onPendingChange={setMigrationPending}
+                  onDone={async () => {
+                    await refresh();
+                    setView('overview');
+                  }}
+                />
+              )}
               {view === 'accounts' && (
                 <section className="solana-wallet__card">
                   <h2>Test accounts</h2>
@@ -231,6 +248,14 @@ const ExperimentalSolanaWallet = ({
                   ) : (
                     <Button type="primary" onClick={() => setView('setup')}>
                       Add test account
+                    </Button>
+                  )}
+                  {status.custody !== 'shared' && status.selected && (
+                    <Button
+                      disabled={busy}
+                      onClick={() => setView('migration')}
+                    >
+                      Move test account to wallet vault
                     </Button>
                   )}
                   <Button
