@@ -33,6 +33,10 @@ import { ExtensionUpdateBanner } from './components/ExtensionUpdateBanner';
 import { FirstNoticeDialog } from './components/FirstNoticeDialog';
 import { useExtensionVersionInfo } from '@/ui/hooks/useExtensionVersionInfo';
 import { refreshBridgeHistoryTop10 } from '@/ui/views/Bridge/utils/historyCache';
+import {
+  WalletViewSelector,
+  WalletView,
+} from './components/WalletViewSelector';
 
 let SolanaWallet: React.ComponentType<{
   onExit: () => void;
@@ -47,7 +51,7 @@ if (
 }
 
 const Dashboard = () => {
-  const [walletFamily, setWalletFamily] = useState<'evm' | 'solana'>('evm');
+  const [walletFamily, setWalletFamily] = useState<WalletView>('evm');
   const [solanaPending, setSolanaPending] = useState(false);
   const history = useHistory();
   const wallet = useWallet();
@@ -241,30 +245,11 @@ const Dashboard = () => {
       <div className="relative h-full overflow-hidden">
         <div className="dashboard h-full overflow-y-auto">
           {SolanaWallet && (
-            <div
-              className="wallet-family-switch"
-              role="tablist"
-              aria-label="Wallet family"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={walletFamily === 'evm'}
-                disabled={solanaPending}
-                onClick={() => setWalletFamily('evm')}
-              >
-                Ethereum &amp; EVM
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={walletFamily === 'solana'}
-                disabled={solanaPending}
-                onClick={() => setWalletFamily('solana')}
-              >
-                Solana <small>Devnet</small>
-              </button>
-            </div>
+            <WalletViewSelector
+              value={walletFamily}
+              disabled={solanaPending}
+              onChange={setWalletFamily}
+            />
           )}
           {walletFamily === 'solana' && SolanaWallet ? (
             <SolanaWallet
