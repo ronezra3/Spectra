@@ -174,6 +174,15 @@ test('fails closed when locking during shared account encryption', async () => {
   jest.restoreAllMocks();
   await target.submitPassword('target-test-password');
   expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
+  const [solanaKeyring] = target.getKeyringsByType(SOLANA_KEYRING_TYPE);
+  await expect(target.displayForKeyring(solanaKeyring)).rejects.toThrow(
+    'Solana-specific'
+  );
+  expect(
+    (await target.getAllTypedAccounts()).every(
+      (entry) => entry.type !== SOLANA_KEYRING_TYPE
+    )
+  ).toBe(true);
   await target.setLocked();
   source.lock();
 }, 30000);

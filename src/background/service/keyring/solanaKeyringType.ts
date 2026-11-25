@@ -1,3 +1,3 @@
-/** Reserved for Solana software keys; serialized data must never enter the
- * unencrypted keyring mirror. This type is not registered or usable yet. */
+/** Solana software keys are restored only from encrypted keyring storage;
+ * they must never enter the unencrypted mirror or generic EVM account paths. */
 export const SOLANA_KEYRING_TYPE = 'OmniWallet Solana Keyring';

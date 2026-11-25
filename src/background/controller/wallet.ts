@@ -2,6 +2,7 @@ import { resolveNetworkAccount } from '@/chains/resolveNetworkAccount';
 import type { WalletNetwork } from '@/chains/network';
 import { walletAccountFromEvm } from '@/chains/walletAccount';
 import { getExperimentalSolanaWallet } from '../service/solanaRuntime';
+import { SOLANA_KEYRING_TYPE } from '../service/keyring/solanaKeyringType';
 import {
   stripHexPrefix,
   isValidPrivate,
@@ -4855,6 +4856,7 @@ export class WalletController extends BaseController {
   getTypedAccounts = async (type) => {
     return Promise.all(
       keyringService.keyrings
+        .filter((keyring) => keyring.type !== SOLANA_KEYRING_TYPE)
         .map((keyring) => new DisplayKeyring(keyring))
         .filter((keyring) => !type || keyring.type === type)
         .map((keyring) => keyringService.displayForKeyring(keyring))
@@ -5242,6 +5244,8 @@ export class WalletController extends BaseController {
     keyringId: number | null,
     ...params: any[]
   ) => {
+    if (type === SOLANA_KEYRING_TYPE)
+      throw new Error('Solana keyrings require a Solana-specific operation');
     if (
       typeof methodName !== 'string' ||
       !REQUEST_KEYRING_METHOD_ALLOWLIST.has(methodName)
@@ -5271,12 +5275,16 @@ export class WalletController extends BaseController {
         );
       }
     }
+    if (keyring?.type === SOLANA_KEYRING_TYPE)
+      throw new Error('Solana keyrings require a Solana-specific operation');
     if (keyring[methodName]) {
       return keyring[methodName].call(keyring, ...params);
     }
   };
 
   getKeyringIndex = async (type: string, keyringId: number | null) => {
+    if (type === SOLANA_KEYRING_TYPE)
+      throw new Error('Solana keyrings require a Solana-specific operation');
     let keyring: any;
     if (keyringId !== null && keyringId !== undefined) {
       keyring = stashKeyrings[keyringId];
@@ -5292,6 +5300,8 @@ export class WalletController extends BaseController {
         );
       }
     }
+    if (keyring?.type === SOLANA_KEYRING_TYPE)
+      throw new Error('Solana keyrings require a Solana-specific operation');
     return keyring?.index;
   };
 
@@ -5555,6 +5565,8 @@ export class WalletController extends BaseController {
     preferenceService.getIsDefaultWallet(origin);
 
   #getKeyringByType(type) {
+    if (type === SOLANA_KEYRING_TYPE)
+      throw new Error('Solana keyrings require a Solana-specific operation');
     const keyring = keyringService.getKeyringsByType(type)[0];
 
     if (keyring) {
