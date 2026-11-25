@@ -16,7 +16,9 @@ export type EvmWalletAccount = Readonly<{
 export type SolanaWalletAccount = Readonly<{
   ecosystem: 'solana';
   address: string;
-  source: Readonly<{ kind: 'experimental-solana-vault' }>;
+  source: Readonly<{
+    kind: 'experimental-solana-vault' | 'shared-solana-keyring';
+  }>;
 }>;
 
 export type WalletAccount = EvmWalletAccount | SolanaWalletAccount;
@@ -38,11 +40,14 @@ export function walletAccountFromEvm(account: {
 }
 
 /** Adapt an account already selected by the experimental Solana vault. */
-export function walletAccountFromSolana(address: string): SolanaWalletAccount {
+export function walletAccountFromSolana(
+  address: string,
+  kind: SolanaWalletAccount['source']['kind'] = 'experimental-solana-vault'
+): SolanaWalletAccount {
   return Object.freeze({
     ecosystem: 'solana',
     address,
-    source: Object.freeze({ kind: 'experimental-solana-vault' }),
+    source: Object.freeze({ kind }),
   });
 }
 

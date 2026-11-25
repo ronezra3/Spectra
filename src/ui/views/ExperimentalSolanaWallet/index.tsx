@@ -14,6 +14,7 @@ type Status = {
   unlocked: boolean;
   accounts: string[];
   selected: { address: string; cluster: 'solana:devnet' } | null;
+  custody?: 'shared' | 'separate';
 };
 
 /** Opt-in development view. No real credentials or funds should be used. */
@@ -52,8 +53,13 @@ const ExperimentalSolanaWallet = ({
       (next) => {
         if (active) setStatus(next);
       },
-      () => {
-        if (active) setError('Could not load the experimental Solana vault.');
+      (cause) => {
+        if (active)
+          setError(
+            cause?.message === 'Solana migration requires reconciliation'
+              ? 'The original test vault changed after migration. Reconciliation is required; the original vault has been retained.'
+              : 'Could not load the experimental Solana vault.'
+          );
       }
     );
     return () => {
@@ -79,6 +85,8 @@ const ExperimentalSolanaWallet = ({
         'Wallet is locked': 'Unlock the Rabby wallet before using Solana.',
         'Solana vault is locked': 'Unlock the Solana test vault first.',
         'Solana account already exists': 'This test account already exists.',
+        'Solana migration requires reconciliation':
+          'The original test vault changed after migration. Reconciliation is required; the original vault has been retained.',
         'Could not read Solana vault storage':
           'Could not read Solana vault storage.',
         'Could not write Solana vault storage':
@@ -121,14 +129,17 @@ const ExperimentalSolanaWallet = ({
         Devnet only · Use disposable test wallets and test funds.
         <details>
           <summary>About this wallet</summary>
-          Never use real keys or funds. The Solana vault is separate from
-          Ethereum, has an independent password, and locks when the wallet
-          locks.
+          Never use real keys or funds.{' '}
+          {status?.custody === 'shared'
+            ? 'This test account uses the main wallet vault and its password.'
+            : 'The Solana vault is separate from Ethereum, has an independent password, and locks when the wallet locks.'}
         </details>
       </div>
       {error && <p role="alert">{error}</p>}
       {!status ? (
-        <p>Loading…</p>
+        error ? null : (
+          <p>Loading…</p>
+        )
       ) : (
         <>
           {!status.unlocked ||
@@ -213,9 +224,15 @@ const ExperimentalSolanaWallet = ({
                       </li>
                     ))}
                   </ul>
-                  <Button type="primary" onClick={() => setView('setup')}>
-                    Add test account
-                  </Button>
+                  {status.custody === 'shared' ? (
+                    <p>
+                      Adding shared Solana test accounts is not available yet.
+                    </p>
+                  ) : (
+                    <Button type="primary" onClick={() => setView('setup')}>
+                      Add test account
+                    </Button>
+                  )}
                   <Button
                     disabled={busy}
                     onClick={() =>

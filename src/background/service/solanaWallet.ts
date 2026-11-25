@@ -6,9 +6,12 @@ import {
   SolanaWalletAccount,
   walletAccountFromSolana,
 } from '@/chains/walletAccount';
-import { solanaConnectionSession } from './solanaConnection';
+import {
+  solanaConnectionSession,
+  solanaSigningSession,
+} from './solanaConnection';
 import { rejectSolanaApproval } from '../controller/solanaConnectApproval';
-import { SolanaVault } from './solanaVault';
+import { fingerprintSolanaVault, SolanaVault } from './solanaVault';
 import { SolanaIndexedDbStorage } from './solanaVaultStorage';
 import type { SolanaSelectedAccount } from '../controller/solanaConnect';
 
@@ -17,6 +20,8 @@ class SolanaWalletService {
   private readonly storage = new SolanaIndexedDbStorage();
   private readonly vault = new SolanaVault(this.storage);
   private selected: string | null = null;
+  private verifiedSharedFingerprint: string | null = null;
+  private sharedManuallyLocked = false;
 
   private requireWalletUnlocked(): void {
     if (!keyringService.isUnlocked()) throw new Error('Wallet is locked');
@@ -28,19 +33,66 @@ class SolanaWalletService {
   }
 
   lock(): void {
+    this.sharedManuallyLocked = true;
+    this.clearSession();
+  }
+
+  /** Called when the main wallet locks or re-authenticates. */
+  lockForWalletBoundary(): void {
+    this.sharedManuallyLocked = false;
+    this.clearSession();
+  }
+
+  private clearSession(): void {
     this.selected = null;
+    this.verifiedSharedFingerprint = null;
     this.vault.lock();
     this.invalidateConnections();
   }
 
   isUnlocked(): boolean {
-    return keyringService.isUnlocked() && this.vault.isUnlocked();
+    if (!keyringService.isUnlocked()) return false;
+    const expected = keyringService.getSolanaMigrationSourceFingerprint();
+    return expected
+      ? !this.sharedManuallyLocked &&
+          this.verifiedSharedFingerprint === expected
+      : this.vault.isUnlocked();
+  }
+
+  private async verifySharedCustody(): Promise<boolean> {
+    const expected = keyringService.getSolanaMigrationSourceFingerprint();
+    if (!expected || this.sharedManuallyLocked) return false;
+    let valid = false;
+    try {
+      const ciphertext = await this.storage.read();
+      valid =
+        !!ciphertext &&
+        fingerprintSolanaVault(ciphertext) === expected &&
+        keyringService.isUnlocked() &&
+        !this.sharedManuallyLocked &&
+        keyringService.getSolanaMigrationSourceFingerprint() === expected;
+    } catch {
+      valid = false;
+    }
+    if (!valid) {
+      this.verifiedSharedFingerprint = null;
+      this.selected = null;
+      this.invalidateConnections();
+      return false;
+    }
+    this.verifiedSharedFingerprint = expected;
+    return true;
   }
 
   /** Public account identity; does not expose keys or grant permissions. */
   getSelectedWalletAccount(): SolanaWalletAccount | null {
     return this.isUnlocked() && this.selected
-      ? walletAccountFromSolana(this.selected)
+      ? walletAccountFromSolana(
+          this.selected,
+          this.verifiedSharedFingerprint
+            ? 'shared-solana-keyring'
+            : 'experimental-solana-vault'
+        )
       : null;
   }
 
@@ -56,15 +108,56 @@ class SolanaWalletService {
     this.requireWalletUnlocked();
     if (!this.isUnlocked() || this.selected !== address)
       throw new Error('Solana account unavailable');
-    const signature = await this.vault.signMessage(address, message);
-    if (!this.isUnlocked() || this.selected !== address) {
-      signature.fill(0);
-      throw new Error('Solana account unavailable');
+    const shared = !!keyringService.getSolanaMigrationSourceFingerprint();
+    if (shared && !(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    let signature: Uint8Array | undefined;
+    let accepted = false;
+    try {
+      signature = shared
+        ? await keyringService.signSharedSolanaMessage(address, message)
+        : await this.vault.signMessage(address, message);
+      if (shared && !(await this.verifySharedCustody()))
+        throw new Error('Solana account unavailable');
+      if (
+        !this.isUnlocked() ||
+        this.selected !== address ||
+        shared !== !!keyringService.getSolanaMigrationSourceFingerprint()
+      )
+        throw new Error('Solana account unavailable');
+      accepted = true;
+      return signature;
+    } finally {
+      if (!accepted) signature?.fill(0);
     }
-    return signature;
   }
 
   async status() {
+    if (keyringService.getSolanaMigrationSourceFingerprint()) {
+      if (this.sharedManuallyLocked)
+        return {
+          exists: true,
+          unlocked: false,
+          accounts: [],
+          selected: null,
+          custody: 'shared' as const,
+        };
+      if (!(await this.verifySharedCustody()))
+        throw new Error('Solana migration requires reconciliation');
+      const accounts = await keyringService.getSolanaAccounts();
+      if (!this.isUnlocked()) throw new Error('Wallet is locked');
+      if (!this.selected || !accounts.includes(this.selected)) {
+        this.selected = accounts[0] || null;
+        this.invalidateConnections();
+      }
+      return {
+        exists: true,
+        unlocked: true,
+        accounts,
+        selected: this.getSelectedAccount(),
+        custody: 'shared' as const,
+      };
+    }
     const exists = (await this.storage.read()) !== null;
     const accounts = this.isUnlocked() ? await this.vault.getAccounts() : [];
     return {
@@ -72,6 +165,7 @@ class SolanaWalletService {
       unlocked: this.isUnlocked(),
       accounts: this.isUnlocked() ? accounts : [],
       selected: this.getSelectedAccount(),
+      custody: 'separate' as const,
     };
   }
 
@@ -110,6 +204,7 @@ class SolanaWalletService {
     const preflight = await this.migrationPreflight();
     if (preflight.state !== 'ready')
       throw new Error(`Solana migration unavailable: ${preflight.state}`);
+    this.invalidateConnections();
     let copied: string[] = [];
     await this.vault.withAuthenticatedMigrationSnapshot(
       password,
@@ -121,11 +216,17 @@ class SolanaWalletService {
         );
       }
     );
+    if (!(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    this.vault.lock();
+    this.invalidateConnections();
     return copied;
   }
 
   async create(password: string): Promise<void> {
     this.requireWalletUnlocked();
+    if (keyringService.getSolanaMigrationSourceFingerprint())
+      throw new Error('Shared Solana account management is unavailable');
     await this.vault.create(password);
     if (!keyringService.isUnlocked()) {
       this.lock();
@@ -135,11 +236,28 @@ class SolanaWalletService {
 
   async unlock(password: string): Promise<void> {
     this.requireWalletUnlocked();
+    if (keyringService.getSolanaMigrationSourceFingerprint()) {
+      const generation = solanaSigningSession.currentGeneration();
+      await keyringService.verifyPassword(password);
+      if (
+        !keyringService.isUnlocked() ||
+        generation !== solanaSigningSession.currentGeneration()
+      )
+        throw new Error('Wallet is locked');
+      this.sharedManuallyLocked = false;
+      if (!(await this.verifySharedCustody()))
+        throw new Error('Solana migration requires reconciliation');
+      await this.status();
+      if (!this.isUnlocked()) throw new Error('Wallet is locked');
+      this.invalidateConnections();
+      return;
+    }
     await this.vault.unlock(password);
     if (!keyringService.isUnlocked()) {
       this.lock();
       throw new Error('Wallet is locked');
     }
+    this.sharedManuallyLocked = false;
     const [first] = await this.vault.getAccounts();
     if (!this.isUnlocked()) throw new Error('Wallet is locked');
     this.selected = first || null;
@@ -152,6 +270,8 @@ class SolanaWalletService {
     index: number
   ): Promise<string> {
     this.requireWalletUnlocked();
+    if (keyringService.getSolanaMigrationSourceFingerprint())
+      throw new Error('Shared Solana account management is unavailable');
     // Revoke outstanding consent before a pending account switch starts.
     this.invalidateConnections();
     const address = await this.vault.importTestMnemonic(
@@ -168,8 +288,17 @@ class SolanaWalletService {
   async selectAccount(address: string): Promise<void> {
     this.requireWalletUnlocked();
     if (this.selected !== address) this.invalidateConnections();
-    const accounts = await this.vault.getAccounts();
-    if (!this.isUnlocked() || !accounts.includes(address)) {
+    const shared = !!keyringService.getSolanaMigrationSourceFingerprint();
+    if (shared && !(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    const accounts = shared
+      ? await keyringService.getSolanaAccounts()
+      : await this.vault.getAccounts();
+    if (
+      !this.isUnlocked() ||
+      shared !== !!keyringService.getSolanaMigrationSourceFingerprint() ||
+      !accounts.includes(address)
+    ) {
       throw new Error('Solana account is unavailable');
     }
     if (this.selected !== address) {

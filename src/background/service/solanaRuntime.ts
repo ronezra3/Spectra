@@ -17,5 +17,5 @@ export function getExperimentalSolanaWallet() {
 }
 
 export function lockExperimentalSolanaWallet(): void {
-  loaded?.lock();
+  loaded?.lockForWalletBoundary();
 }
