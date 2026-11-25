@@ -285,6 +285,50 @@ class SolanaWalletService {
     return address;
   }
 
+  /** Background-only until the shared account onboarding flow is ready. */
+  async addSharedTestMnemonic(
+    password: string,
+    mnemonic: string,
+    index: number
+  ): Promise<string> {
+    this.requireWalletUnlocked();
+    const fingerprint = keyringService.getSolanaMigrationSourceFingerprint();
+    if (!fingerprint || !(await this.verifySharedCustody()))
+      throw new Error('Shared Solana account unavailable');
+    const beforeAuthentication = solanaSigningSession.currentGeneration();
+    await keyringService.verifyPassword(password);
+    if (
+      !keyringService.isUnlocked() ||
+      this.sharedManuallyLocked ||
+      beforeAuthentication !== solanaSigningSession.currentGeneration() ||
+      this.verifiedSharedFingerprint !== fingerprint
+    )
+      throw new Error('Wallet is locked');
+    this.invalidateConnections();
+    const generation = solanaSigningSession.currentGeneration();
+    const assertCurrent = () => {
+      if (
+        !keyringService.isUnlocked() ||
+        this.sharedManuallyLocked ||
+        generation !== solanaSigningSession.currentGeneration() ||
+        this.verifiedSharedFingerprint !== fingerprint
+      )
+        throw new Error('Solana session expired');
+    };
+    const address = await keyringService.addSharedSolanaTestAccount(
+      mnemonic,
+      index,
+      assertCurrent
+    );
+    assertCurrent();
+    if (!(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    assertCurrent();
+    this.selected = address;
+    this.invalidateConnections();
+    return address;
+  }
+
   async selectAccount(address: string): Promise<void> {
     this.requireWalletUnlocked();
     if (this.selected !== address) this.invalidateConnections();
