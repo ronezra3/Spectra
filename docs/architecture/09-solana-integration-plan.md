@@ -22,8 +22,10 @@ Native custody has a distinct encrypted marker and fails closed if a legacy
 source appears. Both paths require acknowledged target storage before use.
 Solana secrets stay out of unencrypted keyring data and ordinary EVM account
 lists. Main wallet lock/unlock invalidates Solana sessions. Solana recovery
-currently requires its own test mnemonic and index; it is not automatically
-linked to an EVM seed and there is no complete backup/export flow.
+requires the appropriate test mnemonic and index. The user may explicitly
+derive an associated account from a supported selected EVM HD seed; independent
+Solana accounts are never linked automatically. A complete backup/export flow
+is not yet available.
 
 ## Trust and consent
 
@@ -65,6 +67,7 @@ needed or permitted for this experiment.
   isolated. Shared custody is not a general-purpose keyring integration.
 - The dashboard selector currently switches views, not individual EVM networks
   or dApp network state. First-time native custody needs fresh-profile browser
-  testing, and account association and source reconciliation remain unfinished.
+  testing. Multiple links need explicit choice and source reconciliation is
+  unfinished; linked HD-seed derivation is limited to supported test accounts.
 
 Reference: https://solana.com/developers/cookbook/wallets/restore-from-mnemonic

@@ -26,7 +26,7 @@ EVM requests were routed through an explicit boundary. Solana gained its own Wal
 
 The first experimental Solana keyring derived Ed25519 keys in a separately encrypted IndexedDB vault. We subsequently added explicit, opt-in migration into the main encrypted keyring vault, retaining the original ciphertext. The target is activated only after storage acknowledgement and a check that the encrypted source still matches the fingerprint stored inside the encrypted target. A native Devnet setup can also create its first Solana account in the main vault without a legacy source. Lock and unlock invalidate Solana sessions. Solana keys are excluded from the unencrypted keyring mirror and ordinary EVM account lists.
 
-**Why:** isolation let us validate chain-specific behavior before sharing encryption. The migration preserves a recovery source and fails closed when its state is ambiguous. A native marker distinguishes new accounts from migrated ones. A shared encrypted container does not imply that EVM and Solana accounts share a recovery phrase: the current Solana onboarding still creates or accepts its own disposable phrase, and account grouping and backup are not complete.
+**Why:** isolation let us validate chain-specific behavior before sharing encryption. The migration preserves a recovery source and fails closed when its state is ambiguous. A native marker distinguishes new accounts from migrated ones. A shared encrypted container does not by itself imply that EVM and Solana accounts share a recovery phrase; that relationship must be established explicitly.
 
 ## 5. Bind approvals to exact intent
 
@@ -56,9 +56,11 @@ The wallet experience uses Rabby controls, theme variables, and dashboard naviga
 
 ## 9. Incrementally unify the account experience
 
-The development dashboard now offers a view selector for the aggregate EVM dashboard and Solana Devnet. Shared-vault users can add another disposable Solana account, authenticated with the main wallet password. New test installations can create the first Solana account directly in that vault. Existing legacy installations retain their source and can opt into migration.
+The development dashboard now offers a remembered view selector for the aggregate EVM dashboard and Solana Devnet. Shared-vault users can add a disposable Solana account, authenticated with the main wallet password. A supported selected EVM HD account can also explicitly derive a Solana account from the same test recovery phrase, without exposing that phrase to the UI. The encrypted Solana keyring stores the association and derivation index. The flow suggests the EVM account index, checks the selected address throughout the operation, and rejects ambiguous or unsupported sources. Existing unrelated Solana accounts are never linked by guesswork.
 
-The selector currently chooses a dashboard view: it does not select individual EVM chains, switch a dApp's network, or associate an EVM address with a Solana address. The two account selections remain separate. A real unified network and account model still needs explicit account association, lifecycle and approval semantics, and a shared UI shell.
+When opening the Solana view, the wallet verifies a unique association and its derivation before selecting the linked account. It leaves existing accounts unchanged if there is no unique link and tells the user to verify the address; manually selected accounts are identified separately. A change in EVM account or a lock invalidates the relevant Solana session.
+
+The selector currently chooses a dashboard view: it does not select individual EVM chains or switch a dApp's network. Multiple Solana associations for one EVM account are not automatically resolved. A complete unified network and account model still needs a shared UI shell and explicit handling of multiple associations.
 
 **Why:** presenting a dashboard view as a protocol network switch would be misleading. EVM address identity and dApp permissions must not be reused implicitly for Solana. Explicit incremental boundaries make it possible to test each change without pretending the final UX already exists.
 
@@ -66,12 +68,14 @@ The selector currently chooses a dashboard view: it does not select individual E
 
 An isolated Chrome test verified migration of three disposable accounts into the main vault, preserved their public addresses, and reopened them after reloading the extension with the main wallet password; the EVM test address remained visible. The new dashboard selector was also exercised in Chrome. A separate automated integration test uses the actual encrypted keyring and Ed25519 implementation to create accounts, sign, lock, reopen, and preserve an EVM account. IndexedDB and unrelated unavailable hardware dependencies are mocked in that test.
 
-The first-time native shared-vault onboarding and addition of a new shared account have not yet been validated end to end in a fresh browser profile. A post-migration test transfer was prepared, but its submission was not confirmed, so it must not be reported as a successful transaction. Earlier Devnet provider and transfer results in section 7 describe the earlier separate-vault implementation, not a complete regression of the new custody path.
+Linked creation and signing were also exercised in an automated integration test with real HD/Ed25519 derivation and encrypted keyring serialization; browser storage, hardware and unrelated boundaries were mocked. The first-time linked and native shared-vault onboarding and addition of a shared account have not yet been validated end to end in a fresh browser profile. A post-migration test transfer was prepared, but its submission was not confirmed, so it must not be reported as a successful transaction. Earlier Devnet provider and transfer results in section 7 describe the earlier separate-vault implementation, not a complete regression of the new custody path.
+
+The focused regression run passed 85 tests across 11 suites, with one pre-existing skip. The EVM keyring suite required mocks for unavailable Ledger and browser-related dependencies; these results do not establish complete EVM regression coverage.
 
 ## Current limits and trade-offs
 
 - Devnet and explicit development flags only; no Mainnet support.
-- Shared custody and legacy migration are experimental. Solana account grouping with the existing EVM seed and a complete backup/export flow are not implemented.
+- Shared custody and legacy migration are experimental. Same-seed linking covers explicitly selected supported HD accounts; SLIP-39, passphrase-protected seeds and complete backup/export remain unsupported.
 - The dashboard has a view selector rather than one complete network and account selector. The Solana views have not yet been fully merged into the shared dashboard components.
 - General dApp instructions, versioned transactions, swaps, NFTs, and hardware wallets are outside the implemented scope.
 - No fee estimate or transaction simulation; displaying only the supported simple transfer is intentional.
