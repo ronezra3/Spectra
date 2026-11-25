@@ -277,6 +277,14 @@ const ExperimentalSolanaWallet = ({
               {view === 'accounts' && (
                 <section className="solana-wallet__card">
                   <h2>Test accounts</h2>
+                  {evmAccount && (
+                    <Button
+                      disabled={busy}
+                      onClick={() => history.push('/switch-address')}
+                    >
+                      Change wallet account
+                    </Button>
+                  )}
                   {status.accounts.length === 0 && (
                     <p>No Solana test accounts yet.</p>
                   )}
