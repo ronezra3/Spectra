@@ -1570,6 +1570,50 @@ export class KeyringService extends EventEmitter {
     return this.isUnlocked() ? accounts.flat() : [];
   }
 
+  /** Background signing primitive; callers must enforce exact user approval. */
+  async signSharedSolanaMessage(
+    address: string,
+    message: Uint8Array
+  ): Promise<Uint8Array> {
+    if (!this.isUnlocked()) throw new Error('Wallet is locked');
+    if (!(message instanceof Uint8Array) || message.byteLength > 1024)
+      throw new Error('Invalid Solana signing payload');
+    const generation = this.lockGeneration;
+    const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);
+    if (keyrings.some((keyring) => !(keyring instanceof SolanaKeyring)))
+      throw new Error('Invalid Solana keyring');
+    const accountLists: string[][] = await Promise.all(
+      keyrings.map((keyring) => keyring.getAccounts())
+    );
+    if (!this.isUnlocked() || generation !== this.lockGeneration)
+      throw new Error('Wallet is locked');
+    const matching = keyrings.filter(
+      (keyring, index) =>
+        this.keyrings.includes(keyring) && accountLists[index].includes(address)
+    );
+    if (matching.length !== 1) throw new Error('Solana account unavailable');
+    const keyring = matching[0] as SolanaKeyring;
+    const payload = new Uint8Array(message);
+    let signature: Uint8Array | undefined;
+    let accepted = false;
+    try {
+      signature = await keyring.signMessage(address, payload);
+      if (
+        !this.isUnlocked() ||
+        generation !== this.lockGeneration ||
+        !this.keyrings.includes(keyring) ||
+        !(signature instanceof Uint8Array) ||
+        signature.length !== 64
+      )
+        throw new Error('Solana signing expired');
+      accepted = true;
+      return signature;
+    } finally {
+      payload.fill(0);
+      if (!accepted) signature?.fill(0);
+    }
+  }
+
   /**
    * Get Keyring For Account
    *
