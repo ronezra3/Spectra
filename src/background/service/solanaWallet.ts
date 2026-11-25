@@ -23,6 +23,12 @@ class SolanaWalletService {
   private verifiedSharedFingerprint: string | null = null;
   private sharedManuallyLocked = false;
 
+  private sharedIdentity(): string | null {
+    return keyringService.hasAcknowledgedNativeSolanaCustody()
+      ? 'native-devnet-v1'
+      : keyringService.getSolanaMigrationSourceFingerprint();
+  }
+
   private requireWalletUnlocked(): void {
     if (!keyringService.isUnlocked()) throw new Error('Wallet is locked');
   }
@@ -52,7 +58,7 @@ class SolanaWalletService {
 
   isUnlocked(): boolean {
     if (!keyringService.isUnlocked()) return false;
-    const expected = keyringService.getSolanaMigrationSourceFingerprint();
+    const expected = this.sharedIdentity();
     return expected
       ? !this.sharedManuallyLocked &&
           this.verifiedSharedFingerprint === expected
@@ -60,17 +66,18 @@ class SolanaWalletService {
   }
 
   private async verifySharedCustody(): Promise<boolean> {
-    const expected = keyringService.getSolanaMigrationSourceFingerprint();
+    const expected = this.sharedIdentity();
     if (!expected || this.sharedManuallyLocked) return false;
     let valid = false;
     try {
       const ciphertext = await this.storage.read();
       valid =
-        !!ciphertext &&
-        fingerprintSolanaVault(ciphertext) === expected &&
+        (expected === 'native-devnet-v1'
+          ? ciphertext === null
+          : !!ciphertext && fingerprintSolanaVault(ciphertext) === expected) &&
         keyringService.isUnlocked() &&
         !this.sharedManuallyLocked &&
-        keyringService.getSolanaMigrationSourceFingerprint() === expected;
+        this.sharedIdentity() === expected;
     } catch {
       valid = false;
     }
@@ -108,7 +115,7 @@ class SolanaWalletService {
     this.requireWalletUnlocked();
     if (!this.isUnlocked() || this.selected !== address)
       throw new Error('Solana account unavailable');
-    const shared = !!keyringService.getSolanaMigrationSourceFingerprint();
+    const shared = !!this.sharedIdentity();
     if (shared && !(await this.verifySharedCustody()))
       throw new Error('Solana migration requires reconciliation');
     let signature: Uint8Array | undefined;
@@ -122,7 +129,7 @@ class SolanaWalletService {
       if (
         !this.isUnlocked() ||
         this.selected !== address ||
-        shared !== !!keyringService.getSolanaMigrationSourceFingerprint()
+        shared !== !!this.sharedIdentity()
       )
         throw new Error('Solana account unavailable');
       accepted = true;
@@ -133,7 +140,7 @@ class SolanaWalletService {
   }
 
   async status() {
-    if (keyringService.getSolanaMigrationSourceFingerprint()) {
+    if (this.sharedIdentity()) {
       if (this.sharedManuallyLocked)
         return {
           exists: true,
@@ -225,7 +232,7 @@ class SolanaWalletService {
 
   async create(password: string): Promise<void> {
     this.requireWalletUnlocked();
-    if (keyringService.getSolanaMigrationSourceFingerprint())
+    if (this.sharedIdentity())
       throw new Error('Shared Solana account management is unavailable');
     await this.vault.create(password);
     if (!keyringService.isUnlocked()) {
@@ -236,7 +243,7 @@ class SolanaWalletService {
 
   async unlock(password: string): Promise<void> {
     this.requireWalletUnlocked();
-    if (keyringService.getSolanaMigrationSourceFingerprint()) {
+    if (this.sharedIdentity()) {
       const generation = solanaSigningSession.currentGeneration();
       await keyringService.verifyPassword(password);
       if (
@@ -270,7 +277,7 @@ class SolanaWalletService {
     index: number
   ): Promise<string> {
     this.requireWalletUnlocked();
-    if (keyringService.getSolanaMigrationSourceFingerprint())
+    if (this.sharedIdentity())
       throw new Error('Shared Solana account management is unavailable');
     // Revoke outstanding consent before a pending account switch starts.
     this.invalidateConnections();
@@ -292,7 +299,7 @@ class SolanaWalletService {
     index: number
   ): Promise<string> {
     this.requireWalletUnlocked();
-    const fingerprint = keyringService.getSolanaMigrationSourceFingerprint();
+    const fingerprint = this.sharedIdentity();
     if (!fingerprint || !(await this.verifySharedCustody()))
       throw new Error('Shared Solana account unavailable');
     const beforeAuthentication = solanaSigningSession.currentGeneration();
@@ -332,7 +339,7 @@ class SolanaWalletService {
   async selectAccount(address: string): Promise<void> {
     this.requireWalletUnlocked();
     if (this.selected !== address) this.invalidateConnections();
-    const shared = !!keyringService.getSolanaMigrationSourceFingerprint();
+    const shared = !!this.sharedIdentity();
     if (shared && !(await this.verifySharedCustody()))
       throw new Error('Solana migration requires reconciliation');
     const accounts = shared
@@ -340,7 +347,7 @@ class SolanaWalletService {
       : await this.vault.getAccounts();
     if (
       !this.isUnlocked() ||
-      shared !== !!keyringService.getSolanaMigrationSourceFingerprint() ||
+      shared !== !!this.sharedIdentity() ||
       !accounts.includes(address)
     ) {
       throw new Error('Solana account is unavailable');
