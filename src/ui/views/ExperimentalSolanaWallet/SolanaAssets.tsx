@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Button, Skeleton } from 'antd';
 import { copyAddress } from '@/ui/utils/clipboard';
 import {
+  RcIconReceiveCC,
+  RcIconSendCC,
+  RcIconTransactionsCC,
+  RcIconManageCC,
+} from '@/ui/assets/dashboard/panel';
+import {
   formatLamports,
   getDevnetBalance,
 } from '@/chains/solana/devnetBalance';
@@ -15,10 +21,14 @@ export const SolanaAssets = ({
   address,
   onReceive,
   onSend,
+  onActivity,
+  onAccounts,
 }: {
   address: string;
   onReceive: () => void;
   onSend: () => void;
+  onActivity: () => void;
+  onAccounts: () => void;
 }) => {
   const [balance, setBalance] = useState<number | null>(null);
   const [tokens, setTokens] = useState<DevnetToken[] | null>(null);
@@ -78,6 +88,16 @@ export const SolanaAssets = ({
   return (
     <section className="solana-assets" aria-label="Solana assets">
       <div className="solana-assets__balance">
+        <button
+          className="solana-assets__account"
+          type="button"
+          onClick={onAccounts}
+        >
+          <span>Solana account</span>
+          <span>
+            {address.slice(0, 6)}...{address.slice(-6)} ›
+          </span>
+        </button>
         <span>Solana Devnet balance</span>
         {balance !== null ? (
           <strong>{formatLamports(balance)} SOL</strong>
@@ -86,15 +106,31 @@ export const SolanaAssets = ({
         ) : (
           <Skeleton.Input active size="small" />
         )}
-        <div className="solana-assets__actions">
-          <Button onClick={onReceive}>Receive</Button>
-          <Button onClick={onSend}>Send</Button>
-          <Button onClick={() => setRefresh((value) => value + 1)}>
-            Refresh
-          </Button>
-        </div>
       </div>
-      <h2>Assets</h2>
+      <div className="solana-assets__actions">
+        <button type="button" onClick={onSend}>
+          <RcIconSendCC aria-hidden="true" />
+          Send
+        </button>
+        <button type="button" onClick={onReceive}>
+          <RcIconReceiveCC aria-hidden="true" />
+          Receive
+        </button>
+        <button type="button" onClick={onActivity}>
+          <RcIconTransactionsCC aria-hidden="true" />
+          Transactions
+        </button>
+        <button type="button" onClick={onAccounts}>
+          <RcIconManageCC aria-hidden="true" />
+          Accounts
+        </button>
+      </div>
+      <div className="solana-assets__section-heading">
+        <h2>Assets</h2>
+        <button type="button" onClick={() => setRefresh((value) => value + 1)}>
+          Refresh
+        </button>
+      </div>
       <div className="solana-assets__row">
         <span className="solana-assets__icon">S</span>
         <span>

@@ -16,7 +16,13 @@ type Status = {
 };
 
 /** Opt-in development view. No real credentials or funds should be used. */
-const ExperimentalSolanaWallet = () => {
+const ExperimentalSolanaWallet = ({
+  onExit,
+  onPendingChange,
+}: {
+  onExit?: () => void;
+  onPendingChange?: (pending: boolean) => void;
+}) => {
   const wallet = useWallet();
   const history = useHistory();
   const [status, setStatus] = useState<Status | null>(null);
@@ -31,6 +37,10 @@ const ExperimentalSolanaWallet = () => {
     'overview' | 'send' | 'receive' | 'activity' | 'accounts' | 'restore'
   >('overview');
   const refreshTimer = useRef<number>();
+
+  useEffect(() => {
+    onPendingChange?.(sendPending);
+  }, [sendPending, onPendingChange]);
 
   useEffect(() => () => window.clearTimeout(refreshTimer.current), []);
 
@@ -97,7 +107,9 @@ const ExperimentalSolanaWallet = () => {
         disabled={sendPending}
         onClick={() =>
           view === 'overview' || !status?.unlocked
-            ? history.push('/dashboard')
+            ? onExit
+              ? onExit()
+              : history.push('/dashboard')
             : setView('overview')
         }
       >
@@ -109,14 +121,15 @@ const ExperimentalSolanaWallet = () => {
         <h1>Solana wallet</h1>
         <span className="solana-wallet__badge">Devnet</span>
       </header>
-      <p className="solana-wallet__notice">
-        Devnet only. Use disposable test wallets, test passwords and test
-        recovery phrases. Never use real keys or funds.
-      </p>
-      <p className="solana-wallet__notice">
-        The Solana vault is separate from Ethereum and locks when the wallet
-        locks. Its password is independent.
-      </p>
+      <div className="solana-wallet__devnet-notice">
+        Devnet only · Use disposable test wallets and test funds.
+        <details>
+          <summary>About this wallet</summary>
+          Never use real keys or funds. The Solana vault is separate from
+          Ethereum, has an independent password, and locks when the wallet
+          locks.
+        </details>
+      </div>
       {error && <p role="alert">{error}</p>}
       {!status ? (
         <p>Loading…</p>
@@ -164,15 +177,9 @@ const ExperimentalSolanaWallet = () => {
                     address={status.selected.address}
                     onSend={() => setView('send')}
                     onReceive={() => setView('receive')}
+                    onActivity={() => setView('activity')}
+                    onAccounts={() => setView('accounts')}
                   />
-                  <div className="solana-wallet__navigation">
-                    <Button onClick={() => setView('activity')}>
-                      Transactions
-                    </Button>
-                    <Button onClick={() => setView('accounts')}>
-                      Accounts
-                    </Button>
-                  </div>
                 </>
               )}
               {!status.selected && view === 'overview' && (

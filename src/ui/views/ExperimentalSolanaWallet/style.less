@@ -1,40 +1,289 @@
 .solana-wallet {
-  min-height: 100%; max-width: 520px; margin: 0 auto; padding: 20px 20px 32px; background: var(--r-neutral-bg-1, #f5f6fa); color: var(--r-neutral-title-1, #192945);
-  &__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  &__header h1 { margin: 0; font-size: 20px; font-weight: 600; }
-  &__badge { color: #4c65ff; background: #edf0ff; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
-  &__notice { color: var(--r-neutral-foot, #6a7587); font-size: 12px; line-height: 1.5; }
-  &__card { padding: 20px; margin-top: 16px; border-radius: 12px; background: var(--r-neutral-card1, #fff); }
-  &__card h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
-  &__field { display: block; margin-bottom: 12px; }
-  &__field input, &__field textarea { display: block; width: 100%; margin-top: 6px; padding: 9px 12px; border: 1px solid var(--r-neutral-line, #e5e9ef); border-radius: 8px; color: inherit; background: var(--r-neutral-card1, #fff); }
-  &__account { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; margin-bottom: 10px; }
-  &__back { color: #4c65ff; background: none; border: 0; cursor: pointer; padding: 0; margin-bottom: 14px; }
+  min-height: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+  background: var(--r-neutral-bg-1, #f2f4f7);
+  color: var(--r-neutral-title-1, #192945);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  &__header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  &__badge {
+    color: var(--r-blue-default, #4c65ff);
+    background: var(--r-blue-light1, #edf0ff);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  &__notice {
+    color: var(--r-neutral-foot, #6a7587);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  &__devnet-notice {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--r-blue-light1, #edf0ff);
+    color: var(--r-blue-default, #4c65ff);
+    font-size: 12px;
+    line-height: 18px;
+  }
+  &__devnet-notice details {
+    color: var(--r-neutral-body, #3e495e);
+  }
+  &__devnet-notice summary {
+    color: var(--r-blue-default, #4c65ff);
+    cursor: pointer;
+  }
+  &__card {
+    padding: 20px;
+    margin-top: 16px;
+    border-radius: 8px;
+    background: var(--r-neutral-card1, #fff);
+  }
+  &__card h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  &__field {
+    display: block;
+    margin-bottom: 16px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  &__field input,
+  &__field textarea {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid var(--r-neutral-line, #e5e9ef);
+    border-radius: 8px;
+    color: inherit;
+    background: var(--r-neutral-card2, #f7fafc);
+  }
+  &__field input:focus,
+  &__field textarea:focus {
+    outline: 1px solid var(--r-blue-default, #4c65ff);
+    border-color: var(--r-blue-default, #4c65ff);
+  }
+  &__account {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-wrap: anywhere;
+    margin-bottom: 10px;
+  }
+  &__back {
+    color: var(--r-neutral-body, #3e495e);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+  &__back:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 .solana-assets {
-  &__balance { padding: 24px 20px; border-radius: 12px; color: #fff; background: linear-gradient(120deg, #5166e8, #7989f4); }
-  &__balance span { display: block; font-size: 13px; opacity: .85; }
-  &__balance strong { display: block; font-size: 28px; margin: 12px 0 18px; overflow-wrap: anywhere; }
-  &__actions { display: flex; gap: 8px; }
-  &__receive { display: flex; align-items: center; flex-direction: column; gap: 12px; padding: 20px; background: var(--r-neutral-card1, #fff); border-radius: 12px; margin-top: 12px; }
-  &__receive code { overflow-wrap: anywhere; text-align: center; }
-  h2 { font-size: 16px; margin: 24px 0 12px; }
-  &__row { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--r-neutral-card1, #fff); border-radius: 10px; margin-bottom: 8px; }
-  &__row > span:nth-child(2) { flex: 1; min-width: 0; }
-  &__row small { display: block; color: var(--r-neutral-foot, #6a7587); }
-  &__row strong { text-align: right; overflow-wrap: anywhere; max-width: 45%; }
-  &__icon { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%; color: white; background: #586ee7; font-weight: 600; }
-  &__hint { margin-top: 12px; color: var(--r-neutral-foot, #6a7587); font-size: 12px; }
+  &__balance {
+    padding: 16px;
+    border-radius: 8px;
+    color: #fff;
+    background: #2437a9;
+  }
+  &__balance > span {
+    display: block;
+    margin-top: 18px;
+    font-size: 12px;
+    opacity: 0.75;
+  }
+  &__balance > strong {
+    display: block;
+    margin: 6px 0 4px;
+    font-size: 28px;
+    line-height: 36px;
+    overflow-wrap: anywhere;
+  }
+  &__account {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.09);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  &__account span:last-child {
+    opacity: 0.7;
+  }
+  &__actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    overflow: hidden;
+    margin-top: 16px;
+    border-radius: 8px;
+    background: var(--r-neutral-line, #edf0f5);
+  }
+  &__actions button {
+    display: flex;
+    min-height: 80px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 0;
+    background: var(--r-neutral-card1, #fff);
+    color: var(--r-neutral-title-1, #192945);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  &__actions button:hover {
+    background: var(--r-blue-light1, #edf0ff);
+  }
+  &__actions svg {
+    width: 24px;
+    height: 24px;
+  }
+  &__section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px 0 10px;
+  }
+  &__section-heading h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  &__section-heading button {
+    border: 0;
+    background: transparent;
+    color: var(--r-blue-default, #4c65ff);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  &__receive {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+  &__receive code {
+    overflow-wrap: anywhere;
+  }
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: var(--r-neutral-card1, #fff);
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  &__row > span:nth-child(2) {
+    flex: 1;
+    min-width: 0;
+  }
+  &__row small {
+    display: block;
+    color: var(--r-neutral-foot, #6a7587);
+  }
+  &__row strong {
+    text-align: right;
+    overflow-wrap: anywhere;
+    max-width: 45%;
+  }
+  &__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: white;
+    background: #586ee7;
+    font-weight: 600;
+  }
+  &__hint {
+    margin-top: 12px;
+    color: var(--r-neutral-foot, #6a7587);
+    font-size: 12px;
+  }
+  &__unknown summary {
+    padding: 10px 0;
+    color: var(--r-neutral-body, #3e495e);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  &__token {
+    width: 100%;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  &__detail code {
+    display: block;
+    overflow-wrap: anywhere;
+    margin-bottom: 16px;
+  }
+  &__detail > strong {
+    display: block;
+    font-size: 28px;
+    overflow-wrap: anywhere;
+  }
 }
 .solana-activity {
-  &__row { display: flex; width: 100%; text-align: left; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border: 0; border-top: 1px solid var(--r-neutral-line, #e5e9ef); background: transparent; color: inherit; cursor: pointer; }
-  &__row small { display: block; color: var(--r-neutral-foot, #6a7587); }
-  &__row strong { font-size: 12px; white-space: nowrap; }
-  &__detail { overflow-wrap: anywhere; }
+  &__row {
+    display: flex;
+    width: 100%;
+    text-align: left;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border: 0;
+    border-top: 1px solid var(--r-neutral-line, #e5e9ef);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  &__row small {
+    display: block;
+    color: var(--r-neutral-foot, #6a7587);
+  }
+  &__row strong {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  &__detail {
+    overflow-wrap: anywhere;
+  }
 }
-.solana-wallet__navigation { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
-.solana-wallet__navigation button { height: 42px; }
-.solana-wallet__card > button + button { margin-left: 8px; }
-.solana-assets__token { width: 100%; border: 0; color: inherit; text-align: left; cursor: pointer; }
-.solana-assets__detail code { display: block; overflow-wrap: anywhere; margin-bottom: 16px; }
-.solana-assets__detail > strong { display: block; font-size: 28px; overflow-wrap: anywhere; }
+.solana-wallet__card > button + button {
+  margin-left: 8px;
+}

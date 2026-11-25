@@ -24,7 +24,7 @@ jest.mock('ui/utils', () => {
   return { useWallet: () => wallet };
 });
 jest.mock('@/ui/views/ExperimentalSolanaWallet/SolanaAssets', () => ({
-  SolanaAssets: ({ onSend, onReceive }: any) =>
+  SolanaAssets: ({ onSend, onReceive, onActivity }: any) =>
     require('react').createElement(
       'div',
       { 'data-testid': 'assets' },
@@ -34,6 +34,11 @@ jest.mock('@/ui/views/ExperimentalSolanaWallet/SolanaAssets', () => ({
         'button',
         { onClick: onReceive },
         'Receive'
+      ),
+      require('react').createElement(
+        'button',
+        { onClick: onActivity },
+        'Transactions'
       )
     ),
 }));

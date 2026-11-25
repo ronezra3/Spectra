@@ -10,6 +10,12 @@ jest.mock('antd', () => ({
   Skeleton: { Input: () => null },
 }));
 jest.mock('@/ui/utils/clipboard', () => ({ copyAddress: jest.fn() }));
+jest.mock('@/ui/assets/dashboard/panel', () => ({
+  RcIconReceiveCC: () => null,
+  RcIconSendCC: () => null,
+  RcIconTransactionsCC: () => null,
+  RcIconManageCC: () => null,
+}));
 jest.mock('@/chains/solana/devnetBalance', () => ({
   getDevnetBalance: async () => 1000000000,
   formatLamports: () => '1',
@@ -24,16 +30,35 @@ test('unverified token opens a detail screen without implying verified metadata 
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  const send = jest.fn();
+  const receive = jest.fn();
+  const activity = jest.fn();
+  const accounts = jest.fn();
   try {
     await act(async () => {
       root.render(
         createElement(SolanaAssets, {
           address: mint,
-          onReceive: jest.fn(),
-          onSend: jest.fn(),
+          onReceive: receive,
+          onSend: send,
+          onActivity: activity,
+          onAccounts: accounts,
         })
       );
     });
+    for (const [label, callback] of [
+      ['Send', send],
+      ['Receive', receive],
+      ['Transactions', activity],
+      ['Accounts', accounts],
+    ] as const) {
+      const action = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent === label
+      );
+      expect(action).toBeDefined();
+      act(() => Simulate.click(action!));
+      expect(callback).toHaveBeenCalledTimes(1);
+    }
     const token = Array.from(
       container.querySelectorAll('button')
     ).find((button) => button.textContent?.includes('Unknown token'))!;

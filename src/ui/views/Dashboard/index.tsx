@@ -34,7 +34,21 @@ import { FirstNoticeDialog } from './components/FirstNoticeDialog';
 import { useExtensionVersionInfo } from '@/ui/hooks/useExtensionVersionInfo';
 import { refreshBridgeHistoryTop10 } from '@/ui/views/Bridge/utils/historyCache';
 
+let SolanaWallet: React.ComponentType<{
+  onExit: () => void;
+  onPendingChange: (pending: boolean) => void;
+}> | null = null;
+if (
+  process.env.NODE_ENV === 'development' &&
+  process.env.OMNI_SOLANA_READONLY === '1'
+) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  SolanaWallet = require('../ExperimentalSolanaWallet').default;
+}
+
 const Dashboard = () => {
+  const [walletFamily, setWalletFamily] = useState<'evm' | 'solana'>('evm');
+  const [solanaPending, setSolanaPending] = useState(false);
   const history = useHistory();
   const wallet = useWallet();
   const dispatch = useRabbyDispatch();
@@ -226,24 +240,51 @@ const Dashboard = () => {
     <>
       <div className="relative h-full overflow-hidden">
         <div className="dashboard h-full overflow-y-auto">
-          <DashboardHeader onSettingClick={toggleShowMoreSettings} />
-          {process.env.NODE_ENV === 'development' &&
-            process.env.OMNI_SOLANA_READONLY === '1' && (
+          {SolanaWallet && (
+            <div
+              className="wallet-family-switch"
+              role="tablist"
+              aria-label="Wallet family"
+            >
               <button
                 type="button"
-                className="mx-[16px] mb-[12px] w-[calc(100%-32px)] rounded-[8px] border-0 bg-r-blue-light1 px-[16px] py-[12px] text-left text-r-blue-default cursor-pointer"
-                onClick={() => history.push('/experimental/solana-wallet')}
+                role="tab"
+                aria-selected={walletFamily === 'evm'}
+                disabled={solanaPending}
+                onClick={() => setWalletFamily('evm')}
               >
-                Solana wallet · Devnet →
+                Ethereum &amp; EVM
               </button>
-            )}
-          <DashboardPanel onSettingClick={toggleShowMoreSettings} />
-          <div className="px-[16px] pb-[13px]">
-            <GasPriceBar
-              currentConnectedSiteChain={currentConnectedSiteChain}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={walletFamily === 'solana'}
+                disabled={solanaPending}
+                onClick={() => setWalletFamily('solana')}
+              >
+                Solana <small>Devnet</small>
+              </button>
+            </div>
+          )}
+          {walletFamily === 'solana' && SolanaWallet ? (
+            <SolanaWallet
+              onExit={() => setWalletFamily('evm')}
+              onPendingChange={setSolanaPending}
             />
-            <CurrentConnection onChainChange={setCurrentConnectedSiteChain} />
-          </div>
+          ) : (
+            <>
+              <DashboardHeader onSettingClick={toggleShowMoreSettings} />
+              <DashboardPanel onSettingClick={toggleShowMoreSettings} />
+              <div className="px-[16px] pb-[13px]">
+                <GasPriceBar
+                  currentConnectedSiteChain={currentConnectedSiteChain}
+                />
+                <CurrentConnection
+                  onChainChange={setCurrentConnectedSiteChain}
+                />
+              </div>
+            </>
+          )}
         </div>
         <StablecoinSwapPopup />
         <ExtensionUpdateBanner
