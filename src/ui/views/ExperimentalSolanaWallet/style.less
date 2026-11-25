@@ -287,3 +287,28 @@
 .solana-wallet__card > button + button {
   margin-left: 8px;
 }
+
+.solana-onboarding {
+  > .ant-btn {
+    display: block;
+    width: 100%;
+    margin: 10px 0 0;
+  }
+  &__phrase {
+    padding: 16px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    background: var(--r-neutral-card2, #f7fafc);
+    color: var(--r-neutral-title-1, #192945);
+    line-height: 2;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+  &__confirm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+}
