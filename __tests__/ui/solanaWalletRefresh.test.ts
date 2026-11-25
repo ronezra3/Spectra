@@ -176,3 +176,31 @@ test('does not render the previous EVM account result after the selection change
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
   }
 });
+
+test('uses the dashboard selector for navigation while retaining subview back navigation', async () => {
+  const previous = (globalThis as any).IS_REACT_ACT_ENVIRONMENT;
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(createElement(SolanaWallet, { onExit: jest.fn() }))
+    );
+    expect(container.textContent).not.toContain('Back to wallet');
+    const receive = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Receive'
+    )!;
+    act(() => Simulate.click(receive));
+    const back = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === '← Back to Solana'
+    )!;
+    expect(back).toBeDefined();
+    act(() => Simulate.click(back));
+    expect(container.querySelectorAll('[data-testid="assets"]')).toHaveLength(
+      1
+    );
+  } finally {
+    act(() => root.unmount());
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
+  }
+});
