@@ -115,10 +115,10 @@ test('derives and signs with a linked test account, then restores the associatio
   expect(solana.getEvmAssociations()).toEqual([
     { evmAddress: address, solanaAddress, accountIndex: 0 },
   ]);
-  const second = await keyringService.addSharedSolanaTestAccountFromEvmSeed(
-    address,
+  const second = await solanaWalletService.addSharedTestFromCurrentEvm(
+    'test-password',
     1,
-    () => undefined
+    address
   );
   expect(second).not.toBe(solanaAddress);
   expect(

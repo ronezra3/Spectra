@@ -462,6 +462,68 @@ class SolanaWalletService {
     return address;
   }
 
+  /** Background-only; does not alter the selected EVM account. */
+  async addSharedTestFromCurrentEvm(
+    password: string,
+    index: number,
+    expectedAddress: string
+  ): Promise<string> {
+    this.requireWalletUnlocked();
+    const source = preferenceService.getCurrentAccount();
+    if (
+      !source ||
+      source.type !== KEYRING_TYPE.HdKeyring ||
+      typeof expectedAddress !== 'string' ||
+      source.address.toLowerCase() !== expectedAddress.toLowerCase()
+    )
+      throw new Error('Selected EVM account changed');
+    const identity = this.sharedIdentity();
+    const authGeneration = solanaSigningSession.currentGeneration();
+    if (!identity || !(await this.verifySharedCustody()))
+      throw new Error('Shared Solana account unavailable');
+    await keyringService.verifyPassword(password);
+    const selected = preferenceService.getCurrentAccount();
+    if (
+      !selected ||
+      selected.type !== source.type ||
+      selected.brandName !== source.brandName ||
+      selected.address.toLowerCase() !== source.address.toLowerCase() ||
+      !keyringService.isUnlocked() ||
+      this.sharedManuallyLocked ||
+      authGeneration !== solanaSigningSession.currentGeneration() ||
+      this.verifiedSharedFingerprint !== identity
+    )
+      throw new Error('Solana session expired');
+    this.invalidateConnections();
+    const generation = solanaSigningSession.currentGeneration();
+    const assertCurrent = () => {
+      const current = preferenceService.getCurrentAccount();
+      if (
+        !keyringService.isUnlocked() ||
+        this.sharedManuallyLocked ||
+        generation !== solanaSigningSession.currentGeneration() ||
+        this.verifiedSharedFingerprint !== identity ||
+        !current ||
+        current.type !== source.type ||
+        current.brandName !== source.brandName ||
+        current.address.toLowerCase() !== source.address.toLowerCase()
+      )
+        throw new Error('Solana session expired');
+    };
+    const address = await keyringService.addSharedSolanaTestAccountFromEvmSeed(
+      source.address,
+      index,
+      assertCurrent
+    );
+    assertCurrent();
+    if (!(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    assertCurrent();
+    this.selected = address;
+    this.invalidateConnections();
+    return address;
+  }
+
   async selectAccount(address: string): Promise<void> {
     this.requireWalletUnlocked();
     if (this.selected !== address) this.invalidateConnections();
