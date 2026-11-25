@@ -115,6 +115,28 @@ test('derives and signs with a linked test account, then restores the associatio
   expect(solana.getEvmAssociations()).toEqual([
     { evmAddress: address, solanaAddress, accountIndex: 0 },
   ]);
+  const second = await keyringService.addSharedSolanaTestAccountFromEvmSeed(
+    address,
+    1,
+    () => undefined
+  );
+  expect(second).not.toBe(solanaAddress);
+  expect(
+    await keyringService.getAssociatedSolanaTestAccount(address)
+  ).toBeNull();
+  await keyringService.setLocked();
+  solanaWalletService.lockForWalletBoundary();
+  await keyringService.submitPassword('test-password');
+  solanaWalletService.lockForWalletBoundary();
+  expect((await solanaWalletService.status()).accounts).toEqual([
+    solanaAddress,
+    second,
+  ]);
+  const [restored] = keyringService.getKeyringsByType(SOLANA_KEYRING_TYPE);
+  expect(restored.getEvmAssociations()).toEqual([
+    { evmAddress: address, solanaAddress, accountIndex: 0 },
+    { evmAddress: address, solanaAddress: second, accountIndex: 1 },
+  ]);
   await keyringService.setLocked();
   solanaWalletService.lockForWalletBoundary();
 }, 30000);

@@ -1431,6 +1431,46 @@ export class KeyringService extends EventEmitter {
     accountIndex: number,
     assertCurrent: () => void
   ): Promise<string> {
+    return this.withEvmTestSeed(
+      evmAddress,
+      accountIndex,
+      assertCurrent,
+      (mnemonic, guard, preview) =>
+        this.persistNativeSolanaTestAccount(mnemonic, accountIndex, guard, {
+          evmAddress,
+          expectedSolanaAddress: preview,
+        })
+    );
+  }
+
+  /** Background-only; caller verifies custody and user authorization. */
+  async addSharedSolanaTestAccountFromEvmSeed(
+    evmAddress: string,
+    accountIndex: number,
+    assertCurrent: () => void
+  ): Promise<string> {
+    return this.withEvmTestSeed(
+      evmAddress,
+      accountIndex,
+      assertCurrent,
+      (mnemonic, guard, preview) =>
+        this.persistSharedSolanaTestAccount(mnemonic, accountIndex, guard, {
+          evmAddress,
+          expectedSolanaAddress: preview,
+        })
+    );
+  }
+
+  private async withEvmTestSeed(
+    evmAddress: string,
+    accountIndex: number,
+    assertCurrent: () => void,
+    use: (
+      mnemonic: string,
+      assertSource: () => void,
+      preview: string
+    ) => Promise<string>
+  ): Promise<string> {
     const generation = this.lockGeneration;
     const preview = await this.previewSolanaTestAddressFromEvmSeed(
       evmAddress,
@@ -1482,15 +1522,7 @@ export class KeyringService extends EventEmitter {
         throw new Error('EVM seed account changed');
     };
     assertSource();
-    return this.persistNativeSolanaTestAccount(
-      mnemonic,
-      accountIndex,
-      assertSource,
-      {
-        evmAddress,
-        expectedSolanaAddress: preview,
-      }
-    );
+    return use(mnemonic, assertSource, preview);
   }
 
   /** Does not itself authorize signing or select the account. */
@@ -1510,6 +1542,19 @@ export class KeyringService extends EventEmitter {
     mnemonic: string,
     accountIndex: number,
     assertSourceCurrent: () => void
+  ): Promise<string> {
+    return this.persistSharedSolanaTestAccount(
+      mnemonic,
+      accountIndex,
+      assertSourceCurrent
+    );
+  }
+
+  private async persistSharedSolanaTestAccount(
+    mnemonic: string,
+    accountIndex: number,
+    assertSourceCurrent: () => void,
+    evmAssociation?: { evmAddress: string; expectedSolanaAddress: string }
   ): Promise<string> {
     if (!this.isUnlocked()) throw new Error('Wallet is locked');
     const generation = this.lockGeneration;
@@ -1538,6 +1583,15 @@ export class KeyringService extends EventEmitter {
           mnemonic,
           accountIndex
         );
+        if (evmAssociation) {
+          if (address !== evmAssociation.expectedSolanaAddress)
+            throw new Error('Solana derivation changed');
+          await candidate.associateEvmAccount({
+            evmAddress: evmAssociation.evmAddress,
+            solanaAddress: address,
+            accountIndex,
+          });
+        }
         if (!this.isUnlocked() || generation !== this.lockGeneration)
           throw new Error('Wallet is locked');
         assertSourceCurrent();
