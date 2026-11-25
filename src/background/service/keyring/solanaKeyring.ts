@@ -8,7 +8,9 @@ import { deriveSolanaAccountSecret } from './solanaDerivation';
 export type SerializedSolanaKeyring = Readonly<{
   version: 1;
   secretKeys: readonly string[];
-  migration?: 'legacy-devnet-v1';
+  migration?:
+    | 'legacy-devnet-v1'
+    | Readonly<{ kind: 'legacy-devnet-v2'; sourceFingerprint: string }>;
 }>;
 
 /**
@@ -22,7 +24,7 @@ export class SolanaKeyring {
   readonly type = SOLANA_KEYRING_TYPE;
   private secrets: Uint8Array[] = [];
   private closed = false;
-  private migratedFromLegacyDevnet = false;
+  private migration: SerializedSolanaKeyring['migration'];
 
   private assertOpen(): void {
     if (this.closed) throw new Error('Solana keyring is locked');
@@ -111,21 +113,31 @@ export class SolanaKeyring {
     return {
       version: 1,
       secretKeys: this.secrets.map(bytesToHex),
-      ...(this.migratedFromLegacyDevnet
-        ? { migration: 'legacy-devnet-v1' as const }
-        : {}),
+      ...(this.migration ? { migration: this.migration } : {}),
     };
   }
 
   /** Background-only metadata, persisted inside the encrypted keyring data. */
-  markMigratedFromLegacyDevnet(): void {
+  markMigratedFromLegacyDevnet(sourceFingerprint: string): void {
     this.assertOpen();
-    this.migratedFromLegacyDevnet = true;
+    if (!/^[0-9a-f]{64}$/.test(sourceFingerprint))
+      throw new Error('Invalid source fingerprint');
+    this.migration = Object.freeze({
+      kind: 'legacy-devnet-v2',
+      sourceFingerprint,
+    });
   }
 
   isMigratedFromLegacyDevnet(): boolean {
     this.assertOpen();
-    return this.migratedFromLegacyDevnet;
+    return typeof this.migration === 'object';
+  }
+
+  getMigrationSourceFingerprint(): string | null {
+    this.assertOpen();
+    return typeof this.migration === 'object'
+      ? this.migration.sourceFingerprint
+      : null;
   }
 
   async deserialize(input: unknown): Promise<void> {
@@ -136,7 +148,13 @@ export class SolanaKeyring {
       data.version !== 1 ||
       !Array.isArray(data.secretKeys) ||
       data.secretKeys.length > 1000 ||
-      (data.migration !== undefined && data.migration !== 'legacy-devnet-v1')
+      (data.migration !== undefined &&
+        data.migration !== 'legacy-devnet-v1' &&
+        (typeof data.migration !== 'object' ||
+          data.migration === null ||
+          data.migration.kind !== 'legacy-devnet-v2' ||
+          typeof data.migration.sourceFingerprint !== 'string' ||
+          !/^[0-9a-f]{64}$/.test(data.migration.sourceFingerprint)))
     ) {
       throw new Error('Invalid vault');
     }
@@ -159,13 +177,16 @@ export class SolanaKeyring {
     }
     this.secrets.forEach((secret) => secret.fill(0));
     this.secrets = restored;
-    this.migratedFromLegacyDevnet = data.migration === 'legacy-devnet-v1';
+    this.migration =
+      typeof data.migration === 'object'
+        ? Object.freeze({ ...data.migration })
+        : data.migration;
   }
 
   cleanUp(): void {
     this.secrets.forEach((secret) => secret.fill(0));
     this.secrets = [];
-    this.migratedFromLegacyDevnet = false;
+    this.migration = undefined;
     this.closed = true;
   }
 }

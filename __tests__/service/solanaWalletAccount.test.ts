@@ -33,10 +33,14 @@ jest.mock('@/background/service/solanaVault', () => ({
     }
     async withAuthenticatedMigrationSnapshot(
       password: string,
-      use: (snapshot: unknown, assertCurrent: () => void) => Promise<void>
+      use: (
+        snapshot: unknown,
+        assertCurrent: () => void,
+        sourceFingerprint: string
+      ) => Promise<void>
     ) {
       if (password !== 'test-password') throw new Error('decryption failed');
-      await use({}, () => undefined);
+      await use({}, () => undefined, 'a'.repeat(64));
     }
     lock() {
       mockUnlocked = false;

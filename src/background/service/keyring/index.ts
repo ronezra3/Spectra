@@ -1234,7 +1234,8 @@ export class KeyringService extends EventEmitter {
   /** Background-only migration primitive; never expose the snapshot to UI. */
   async importSolanaMigrationSnapshot(
     snapshot: SolanaKeyring,
-    assertSourceCurrent: () => void
+    assertSourceCurrent: () => void,
+    sourceFingerprint: string
   ): Promise<string[]> {
     if (!this.isUnlocked()) throw new Error('Wallet is locked');
     const generation = this.lockGeneration;
@@ -1255,7 +1256,7 @@ export class KeyringService extends EventEmitter {
         await candidate.deserialize(await snapshot.serialize());
         const addresses = await candidate.getAccounts();
         if (!addresses.length) throw new Error('Solana source is empty');
-        candidate.markMigratedFromLegacyDevnet();
+        candidate.markMigratedFromLegacyDevnet(sourceFingerprint);
         if (!this.isUnlocked() || generation !== this.lockGeneration)
           throw new Error('Wallet is locked');
         assertSourceCurrent();
@@ -1295,6 +1296,14 @@ export class KeyringService extends EventEmitter {
       keyrings[0] instanceof SolanaKeyring &&
       keyrings[0].isMigratedFromLegacyDevnet()
     );
+  }
+
+  /** Returns an encrypted-source fingerprint only for an acknowledged migration. */
+  getSolanaMigrationSourceFingerprint(): string | null {
+    if (!this.hasAcknowledgedSolanaMigration()) return null;
+    return (this.getKeyringsByType(
+      SOLANA_KEYRING_TYPE
+    )[0] as SolanaKeyring).getMigrationSourceFingerprint();
   }
 
   sanitizeUnencryptedKeyringDataInStore() {
