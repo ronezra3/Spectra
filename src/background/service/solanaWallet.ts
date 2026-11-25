@@ -22,6 +22,7 @@ class SolanaWalletService {
   private selected: string | null = null;
   private verifiedSharedFingerprint: string | null = null;
   private sharedManuallyLocked = false;
+  private custodyCreationPending = false;
 
   private sharedIdentity(): string | null {
     return keyringService.hasAcknowledgedNativeSolanaCustody()
@@ -232,12 +233,67 @@ class SolanaWalletService {
 
   async create(password: string): Promise<void> {
     this.requireWalletUnlocked();
+    if (this.custodyCreationPending) throw new Error('Solana setup is pending');
     if (this.sharedIdentity())
       throw new Error('Shared Solana account management is unavailable');
-    await this.vault.create(password);
-    if (!keyringService.isUnlocked()) {
-      this.lock();
-      throw new Error('Wallet is locked');
+    this.custodyCreationPending = true;
+    try {
+      await this.vault.create(password);
+      if (!keyringService.isUnlocked()) {
+        this.lock();
+        throw new Error('Wallet is locked');
+      }
+    } finally {
+      this.custodyCreationPending = false;
+    }
+  }
+
+  /** Background-only first-time setup; never overwrite a legacy test vault. */
+  async createNativeTestMnemonic(
+    password: string,
+    mnemonic: string,
+    index: number
+  ): Promise<string> {
+    this.requireWalletUnlocked();
+    if (this.custodyCreationPending) throw new Error('Solana setup is pending');
+    this.custodyCreationPending = true;
+    try {
+      const authGeneration = solanaSigningSession.currentGeneration();
+      if ((await this.storage.read()) !== null || this.sharedIdentity())
+        throw new Error('Solana custody already exists');
+      await keyringService.verifyPassword(password);
+      if (
+        !keyringService.isUnlocked() ||
+        authGeneration !== solanaSigningSession.currentGeneration() ||
+        (await this.storage.read()) !== null ||
+        this.sharedIdentity()
+      )
+        throw new Error('Solana setup expired');
+      this.invalidateConnections();
+      this.sharedManuallyLocked = false;
+      const generation = solanaSigningSession.currentGeneration();
+      const assertCurrent = () => {
+        if (
+          !this.custodyCreationPending ||
+          !keyringService.isUnlocked() ||
+          generation !== solanaSigningSession.currentGeneration()
+        )
+          throw new Error('Solana setup expired');
+      };
+      const address = await keyringService.createNativeSolanaTestAccount(
+        mnemonic,
+        index,
+        assertCurrent
+      );
+      assertCurrent();
+      if (!(await this.verifySharedCustody()))
+        throw new Error('Solana migration requires reconciliation');
+      assertCurrent();
+      this.selected = address;
+      this.invalidateConnections();
+      return address;
+    } finally {
+      this.custodyCreationPending = false;
     }
   }
 
