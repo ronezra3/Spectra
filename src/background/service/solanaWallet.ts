@@ -1,4 +1,5 @@
 import keyringService from './keyring';
+import { SOLANA_DEVNET_NETWORK } from '@/chains/network';
 import { solanaConnectionSession } from './solanaConnection';
 import { rejectSolanaApproval } from '../controller/solanaConnectApproval';
 import { SolanaVault } from './solanaVault';
@@ -32,7 +33,7 @@ class SolanaWalletService {
 
   getSelectedAccount(): SolanaSelectedAccount | null {
     return this.isUnlocked() && this.selected
-      ? { address: this.selected, cluster: 'solana:devnet' }
+      ? { address: this.selected, cluster: SOLANA_DEVNET_NETWORK.id }
       : null;
   }
 
