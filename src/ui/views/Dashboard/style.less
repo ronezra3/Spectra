@@ -1725,3 +1725,64 @@
     opacity: 0.6;
   }
 }
+
+.evm-network-overview {
+  padding: 16px;
+  &__balance {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 8px;
+    background: #2539b7;
+    color: #fff;
+    button {
+      align-self: flex-start;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.09);
+      color: inherit;
+      cursor: pointer;
+    }
+    span {
+      font-size: 12px;
+      opacity: 0.75;
+    }
+    strong {
+      font-size: 28px;
+    }
+  }
+  &__actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    margin: 16px 0;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--r-neutral-line, #edf0f5);
+    button {
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 0;
+      background: var(--r-neutral-card1, #fff);
+      color: var(--r-neutral-title-1, #192945);
+      cursor: pointer;
+      &:hover {
+        background: var(--r-blue-light1, #edf0ff);
+      }
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+    svg {
+      width: 24px;
+      height: 24px;
+    }
+  }
+}
