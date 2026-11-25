@@ -1986,57 +1986,64 @@ export class KeyringService extends EventEmitter {
   }
 
   /** Read-only hint; neither selects an account nor grants any permission. */
-  async getAssociatedSolanaTestAccount(
-    evmAddress: string
-  ): Promise<string | null> {
-    if (!this.isUnlocked() || !/^0x[0-9a-f]{40}$/i.test(evmAddress))
-      return null;
+  async getAssociatedSolanaTestAccounts(evmAddress: string): Promise<string[]> {
+    if (!this.isUnlocked() || !/^0x[0-9a-f]{40}$/i.test(evmAddress)) return [];
     if (
       !this.hasAcknowledgedSolanaMigration() &&
       !this.hasAcknowledgedNativeSolanaCustody()
     )
-      return null;
+      return [];
     const generation = this.lockGeneration;
     const [keyring] = this.getKeyringsByType(
       SOLANA_KEYRING_TYPE
     ) as SolanaKeyring[];
+    if (!keyring) return [];
     const matches = keyring
       .getEvmAssociations()
       .filter(
         (entry) => entry.evmAddress.toLowerCase() === evmAddress.toLowerCase()
       );
-    // An EVM source with several explicit Solana accounts needs user selection.
-    if (matches.length !== 1) return null;
-    const association = matches[0];
+    // Bound work on untrusted vault metadata and fail closed on inconsistent data.
+    if (matches.length > 20) return [];
     try {
-      const derived = await this.previewSolanaTestAddressFromEvmSeed(
-        evmAddress,
-        association.accountIndex
-      );
+      for (const association of matches) {
+        const derived = await this.previewSolanaTestAddressFromEvmSeed(
+          evmAddress,
+          association.accountIndex
+        );
+        if (derived !== association.solanaAddress) return [];
+      }
+      const current = keyring
+        .getEvmAssociations()
+        .filter(
+          (entry) => entry.evmAddress.toLowerCase() === evmAddress.toLowerCase()
+        );
       if (
         !this.isUnlocked() ||
         generation !== this.lockGeneration ||
         (!this.hasAcknowledgedSolanaMigration() &&
           !this.hasAcknowledgedNativeSolanaCustody()) ||
         this.getKeyringsByType(SOLANA_KEYRING_TYPE)[0] !== keyring ||
-        derived !== association.solanaAddress
+        current.length !== matches.length ||
+        current.some(
+          (entry, index) =>
+            entry.solanaAddress !== matches[index].solanaAddress ||
+            entry.accountIndex !== matches[index].accountIndex
+        )
       )
-        return null;
-      const currentMatches = keyring
-        .getEvmAssociations()
-        .filter(
-          (entry) => entry.evmAddress.toLowerCase() === evmAddress.toLowerCase()
-        );
-      if (
-        currentMatches.length !== 1 ||
-        currentMatches[0].solanaAddress !== association.solanaAddress ||
-        currentMatches[0].accountIndex !== association.accountIndex
-      )
-        return null;
-      return association.solanaAddress;
+        return [];
+      return matches.map((entry) => entry.solanaAddress);
     } catch {
-      return null;
+      return [];
     }
+  }
+
+  async getAssociatedSolanaTestAccount(
+    evmAddress: string
+  ): Promise<string | null> {
+    const matches = await this.getAssociatedSolanaTestAccounts(evmAddress);
+    // Ambiguous associations always require explicit user selection.
+    return matches.length === 1 ? matches[0] : null;
   }
 
   /** Background signing primitive; callers must enforce exact user approval. */

@@ -39,6 +39,7 @@ const ExperimentalSolanaWallet = ({
   const [association, setAssociation] = useState<
     'selected' | 'not-linked' | 'manual' | null
   >(null);
+  const [verifiedLinks, setVerifiedLinks] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [assetRefresh, setAssetRefresh] = useState(0);
   const [view, setView] = useState<
@@ -67,6 +68,7 @@ const ExperimentalSolanaWallet = ({
     setStatus(null);
     setError('');
     setAssociation(null);
+    setVerifiedLinks([]);
     setAligning(true);
     (async () => {
       let alignment: 'selected' | 'not-linked' | null = null;
@@ -76,7 +78,12 @@ const ExperimentalSolanaWallet = ({
         );
       else if (evmAccount) alignment = 'not-linked';
       const next = await wallet.experimentalSolanaStatus();
+      const links =
+        evmAccount?.address && evmAccount.type === KEYRING_TYPE.HdKeyring
+          ? await wallet.experimentalSolanaVerifiedLinks(evmAccount.address)
+          : [];
       if (active) {
+        setVerifiedLinks(links);
         setAssociation(alignment);
         setStatus(next);
       }
@@ -203,6 +210,11 @@ const ExperimentalSolanaWallet = ({
                       evmAccount.address
                     )
                   );
+                  setVerifiedLinks(
+                    await wallet.experimentalSolanaVerifiedLinks(
+                      evmAccount.address
+                    )
+                  );
                 } else if (mode === 'create' || mode === 'restore') {
                   setAssociation('manual');
                 }
@@ -272,6 +284,9 @@ const ExperimentalSolanaWallet = ({
                     {status.accounts.map((address) => (
                       <li key={address} className="solana-wallet__account">
                         {address}{' '}
+                        {verifiedLinks.includes(address) && (
+                          <span> · Linked to selected EVM account </span>
+                        )}
                         {status.selected?.address === address ? (
                           '(selected)'
                         ) : (

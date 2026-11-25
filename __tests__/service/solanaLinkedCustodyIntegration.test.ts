@@ -125,6 +125,9 @@ test('derives and signs with a linked test account, then restores the associatio
   );
   expect(second).not.toBe(solanaAddress);
   expect(
+    await solanaWalletService.getVerifiedLinksForCurrentEvm(address)
+  ).toEqual([solanaAddress, second]);
+  expect(
     await keyringService.getAssociatedSolanaTestAccount(address)
   ).toBeNull();
   await keyringService.setLocked();
