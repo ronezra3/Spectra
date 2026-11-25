@@ -1,5 +1,11 @@
 import { decrypt, encrypt } from '@metamask/browser-passworder';
+import { sha256 } from '@noble/hashes/sha256';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
 import { SolanaKeyring } from './keyring/solanaKeyring';
+
+/** Fingerprint encrypted source bytes, never plaintext key material. */
+export const fingerprintSolanaVault = (ciphertext: string): string =>
+  bytesToHex(sha256(utf8ToBytes(ciphertext)));
 
 /** Separate from the EVM vault and its cached encryption key. */
 export interface SolanaVaultStorage {
@@ -151,7 +157,11 @@ export class SolanaVault {
    */
   async withAuthenticatedMigrationSnapshot(
     password: string,
-    use: (snapshot: SolanaKeyring, assertCurrent: () => void) => Promise<void>
+    use: (
+      snapshot: SolanaKeyring,
+      assertCurrent: () => void,
+      sourceFingerprint: string
+    ) => Promise<void>
   ): Promise<void> {
     this.checkPassword(password);
     const generation = this.enter();
@@ -177,7 +187,8 @@ export class SolanaVault {
       };
       this.migrationSnapshot = candidate;
       assertCurrent();
-      await use(candidate, assertCurrent);
+      const sourceFingerprint = fingerprintSolanaVault(ciphertext);
+      await use(candidate, assertCurrent, sourceFingerprint);
       assertCurrent();
       const currentCiphertext = await this.storage.read();
       assertCurrent();

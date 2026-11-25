@@ -45,6 +45,7 @@ beforeAll(async () => {
 import {
   SolanaVault,
   SolanaVaultStorage,
+  fingerprintSolanaVault,
 } from 'background/service/solanaVault';
 import * as passwordUtils from 'background/utils/password';
 import eventBus from '@/eventBus';
@@ -95,16 +96,23 @@ test('copies into an encrypted target, preserves EVM and retains the source', as
   expect(target.hasAcknowledgedSolanaMigration()).toBe(false);
   await source.withAuthenticatedMigrationSnapshot(
     'source-test-password',
-    async (snapshot, assertCurrent) => {
+    async (snapshot, assertCurrent, fingerprint) => {
       expect(
-        await target.importSolanaMigrationSnapshot(snapshot, assertCurrent)
+        await target.importSolanaMigrationSnapshot(
+          snapshot,
+          assertCurrent,
+          fingerprint
+        )
       ).toEqual([solanaAddress]);
     }
   );
   expect(storage.value).toBe(originalSource);
   expect(target.hasAcknowledgedSolanaMigration()).toBe(true);
+  expect(target.getSolanaMigrationSourceFingerprint()).toBe(
+    fingerprintSolanaVault(originalSource!)
+  );
   expect(JSON.stringify(target.store.getState())).not.toContain(
-    'legacy-devnet-v1'
+    'legacy-devnet-v2'
   );
   expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
   expect(await target.getAccounts()).toEqual(
@@ -120,6 +128,9 @@ test('copies into an encrypted target, preserves EVM and retains the source', as
   restarted.loadStore(persistedState);
   await restarted.submitPassword('target-test-password');
   expect(restarted.hasAcknowledgedSolanaMigration()).toBe(true);
+  expect(restarted.getSolanaMigrationSourceFingerprint()).toBe(
+    fingerprintSolanaVault(originalSource!)
+  );
   expect(await restarted.getSolanaAccounts()).toEqual([solanaAddress]);
   expect(await restarted.getAccounts()).toEqual(
     evmAddresses.map(normalizeAddress)
@@ -149,9 +160,9 @@ test('source lock during encryption fails before target commit and keeps the sou
     });
   const pending = source.withAuthenticatedMigrationSnapshot(
     'source-test-password',
-    (snapshot, assertCurrent) =>
+    (snapshot, assertCurrent, fingerprint) =>
       target
-        .importSolanaMigrationSnapshot(snapshot, assertCurrent)
+        .importSolanaMigrationSnapshot(snapshot, assertCurrent, fingerprint)
         .then(() => undefined)
   );
   const rejected = expect(pending).rejects.toThrow();
@@ -170,9 +181,9 @@ test('does not overwrite an existing Solana destination', async () => {
   const migrate = () =>
     source.withAuthenticatedMigrationSnapshot(
       'source-test-password',
-      (snapshot, check) =>
+      (snapshot, check, fingerprint) =>
         target
-          .importSolanaMigrationSnapshot(snapshot, check)
+          .importSolanaMigrationSnapshot(snapshot, check, fingerprint)
           .then(() => undefined)
     );
   await migrate();
@@ -194,9 +205,9 @@ test('retains the candidate when notification fails after the target update', as
   await expect(
     source.withAuthenticatedMigrationSnapshot(
       'source-test-password',
-      (snapshot, check) =>
+      (snapshot, check, fingerprint) =>
         target
-          .importSolanaMigrationSnapshot(snapshot, check)
+          .importSolanaMigrationSnapshot(snapshot, check, fingerprint)
           .then(() => undefined)
     )
   ).rejects.toThrow('notification failed');
@@ -215,9 +226,9 @@ test('requires a storage acknowledger before modifying the target', async () => 
   await expect(
     source.withAuthenticatedMigrationSnapshot(
       'source-test-password',
-      (snapshot, check) =>
+      (snapshot, check, fingerprint) =>
         target
-          .importSolanaMigrationSnapshot(snapshot, check)
+          .importSolanaMigrationSnapshot(snapshot, check, fingerprint)
           .then(() => undefined)
     )
   ).rejects.toThrow('acknowledgement unavailable');
@@ -244,10 +255,12 @@ test('waits for storage acknowledgement before reporting success', async () => {
   let completed = false;
   const pending = source.withAuthenticatedMigrationSnapshot(
     'source-test-password',
-    (snapshot, check) =>
-      target.importSolanaMigrationSnapshot(snapshot, check).then(() => {
-        completed = true;
-      })
+    (snapshot, check, fingerprint) =>
+      target
+        .importSolanaMigrationSnapshot(snapshot, check, fingerprint)
+        .then(() => {
+          completed = true;
+        })
   );
   await started;
   expect(completed).toBe(false);
@@ -268,9 +281,9 @@ test('failed storage acknowledgement retains source and reports an uncertain out
   await expect(
     source.withAuthenticatedMigrationSnapshot(
       'source-test-password',
-      (snapshot, check) =>
+      (snapshot, check, fingerprint) =>
         target
-          .importSolanaMigrationSnapshot(snapshot, check)
+          .importSolanaMigrationSnapshot(snapshot, check, fingerprint)
           .then(() => undefined)
     )
   ).rejects.toThrow('storage failed');
@@ -303,10 +316,12 @@ test('waits for the subscribed ordered storage writer with the updated encrypted
   let completed = false;
   const pending = source.withAuthenticatedMigrationSnapshot(
     'source-test-password',
-    (snapshot, check) =>
-      target.importSolanaMigrationSnapshot(snapshot, check).then(() => {
-        completed = true;
-      })
+    (snapshot, check, fingerprint) =>
+      target
+        .importSolanaMigrationSnapshot(snapshot, check, fingerprint)
+        .then(() => {
+          completed = true;
+        })
   );
   await started;
   expect(completed).toBe(false);

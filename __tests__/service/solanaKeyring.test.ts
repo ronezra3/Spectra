@@ -47,3 +47,23 @@ test('restores a Solana account from a disposable mnemonic without duplicates', 
     'locked'
   );
 });
+
+test('legacy migration metadata remains readable but cannot identify a source snapshot', async () => {
+  const keyring = new SolanaKeyring();
+  await keyring.deserialize({
+    version: 1,
+    secretKeys: [],
+    migration: 'legacy-devnet-v1',
+  });
+  expect(keyring.isMigratedFromLegacyDevnet()).toBe(false);
+  expect(keyring.getMigrationSourceFingerprint()).toBeNull();
+  expect((await keyring.serialize()).migration).toBe('legacy-devnet-v1');
+  await expect(
+    keyring.deserialize({
+      version: 1,
+      secretKeys: [],
+      migration: { kind: 'legacy-devnet-v2', sourceFingerprint: 'invalid' },
+    })
+  ).rejects.toThrow('Invalid vault');
+  keyring.cleanUp();
+});

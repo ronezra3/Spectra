@@ -113,10 +113,11 @@ class SolanaWalletService {
     let copied: string[] = [];
     await this.vault.withAuthenticatedMigrationSnapshot(
       password,
-      async (snapshot, assertCurrent) => {
+      async (snapshot, assertCurrent, sourceFingerprint) => {
         copied = await keyringService.importSolanaMigrationSnapshot(
           snapshot,
-          assertCurrent
+          assertCurrent,
+          sourceFingerprint
         );
       }
     );
