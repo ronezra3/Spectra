@@ -1,5 +1,6 @@
 import keyringService from './keyring';
 import { SOLANA_DEVNET_NETWORK } from '@/chains/network';
+import { assessSolanaMigration } from '@/chains/solana/migrationPreflight';
 import {
   SolanaWalletAccount,
   walletAccountFromSolana,
@@ -71,6 +72,33 @@ class SolanaWalletService {
       accounts: this.isUnlocked() ? accounts : [],
       selected: this.getSelectedAccount(),
     };
+  }
+
+  /** Advisory snapshot only: migration must revalidate before any write. */
+  async migrationPreflight() {
+    if (!keyringService.isUnlocked())
+      return { state: 'wallet-locked' } as const;
+    const before = await this.status();
+    const targetAccounts = await keyringService.getSolanaAccounts();
+    const after = await this.status();
+    if (!keyringService.isUnlocked())
+      return { state: 'wallet-locked' } as const;
+    if (
+      before.exists !== after.exists ||
+      before.unlocked !== after.unlocked ||
+      before.accounts.length !== after.accounts.length ||
+      before.accounts.some(
+        (address, index) => address !== after.accounts[index]
+      )
+    )
+      return { state: 'snapshot-changed' } as const;
+    return assessSolanaMigration({
+      walletUnlocked: true,
+      sourceExists: after.exists,
+      sourceUnlocked: after.unlocked,
+      sourceAccounts: after.accounts,
+      targetAccounts,
+    });
   }
 
   async create(password: string): Promise<void> {
