@@ -10,6 +10,7 @@ const mockWallet = {
   experimentalSolanaCreate: jest.fn(),
   experimentalSolanaUnlock: jest.fn(),
   experimentalSolanaImport: jest.fn(),
+  experimentalSolanaAddShared: jest.fn(),
 };
 jest.mock('ui/utils', () => ({ useWallet: () => mockWallet }));
 jest.mock('antd', () => ({
@@ -32,6 +33,56 @@ beforeEach(() => {
   });
   mockWallet.experimentalSolanaCreate.mockResolvedValue(undefined);
   mockWallet.experimentalSolanaImport.mockResolvedValue('address');
+  mockWallet.experimentalSolanaAddShared.mockResolvedValue('shared-address');
+});
+
+test('adds a restored test account to the shared vault with the main password', async () => {
+  const previous = (globalThis as any).IS_REACT_ACT_ENVIRONMENT;
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const done = jest.fn().mockResolvedValue(undefined);
+  const pending = jest.fn();
+  const status = { exists: true, unlocked: true, custody: 'shared' as const };
+  mockWallet.experimentalSolanaStatus.mockResolvedValue(status);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SolanaOnboarding, {
+          initialStatus: status,
+          onDone: done,
+          onPendingChange: pending,
+        })
+      )
+    );
+    const restore = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Restore a test account'
+    )!;
+    act(() => Simulate.click(restore));
+    act(() => {
+      Simulate.change(container.querySelector('textarea')!, {
+        target: { value: 'disposable test phrase' },
+      } as any);
+      Simulate.change(container.querySelector('input[type="number"]')!, {
+        target: { value: '2' },
+      } as any);
+      Simulate.change(container.querySelector('input[type="password"]')!, {
+        target: { value: 'test-password' },
+      } as any);
+    });
+    await act(async () => Simulate.submit(container.querySelector('form')!));
+    expect(mockWallet.experimentalSolanaAddShared).toHaveBeenCalledWith(
+      'test-password',
+      'disposable test phrase',
+      2
+    );
+    expect(mockWallet.experimentalSolanaImport).not.toHaveBeenCalled();
+    expect(pending.mock.calls).toEqual([[true], [false]]);
+    expect(done).toHaveBeenCalledTimes(1);
+  } finally {
+    act(() => root.unmount());
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
+  }
 });
 
 test('starts with a choice, then creates and imports only after backup acknowledgement', async () => {

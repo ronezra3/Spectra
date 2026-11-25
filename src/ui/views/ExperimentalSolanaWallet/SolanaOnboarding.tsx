@@ -14,10 +14,12 @@ export const SolanaOnboarding = ({
   initialStatus,
   onDone,
   onCancel,
+  onPendingChange,
 }: {
   initialStatus: VaultStatus;
   onDone: () => Promise<void>;
   onCancel?: () => void;
+  onPendingChange?: (pending: boolean) => void;
 }) => {
   const wallet = useWallet();
   const [status, setStatus] = useState(initialStatus);
@@ -28,6 +30,7 @@ export const SolanaOnboarding = ({
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [uncertain, setUncertain] = useState(false);
 
   const createPhrase = async () => {
     if (busy) return;
@@ -46,7 +49,7 @@ export const SolanaOnboarding = ({
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (busy || !password || (mode === 'create' && !saved)) return;
+    if (busy || uncertain || !password || (mode === 'create' && !saved)) return;
     const accountIndex = Number(index);
     if (
       mode !== 'unlock' &&
@@ -59,6 +62,7 @@ export const SolanaOnboarding = ({
       return;
     }
     setBusy(true);
+    onPendingChange?.(true);
     setError('');
     try {
       const current = await wallet.experimentalSolanaStatus();
@@ -66,18 +70,30 @@ export const SolanaOnboarding = ({
         if (current.exists) await wallet.experimentalSolanaUnlock(password);
         else await wallet.experimentalSolanaCreate(password);
       }
-      if (mode !== 'unlock')
-        await wallet.experimentalSolanaImport(
+      if (mode !== 'unlock') {
+        const importAccount =
+          current.custody === 'shared'
+            ? wallet.experimentalSolanaAddShared
+            : wallet.experimentalSolanaImport;
+        await importAccount(
           password,
           phrase.trim(),
           mode === 'create' ? 0 : accountIndex
         );
+      }
       setPhrase('');
       await onDone();
     } catch {
-      setError(
-        'Could not complete the operation. Check the test password, recovery phrase, and wallet lock state.'
-      );
+      if (status.custody === 'shared' && mode !== 'unlock') {
+        setUncertain(true);
+        setError(
+          'The account may or may not have been added. Reopen the wallet and check its accounts before trying again. Your original test vault was retained.'
+        );
+      } else {
+        setError(
+          'Could not complete the operation. Check the test password, recovery phrase, and wallet lock state.'
+        );
+      }
       try {
         setStatus(await wallet.experimentalSolanaStatus());
       } catch {
@@ -86,6 +102,7 @@ export const SolanaOnboarding = ({
     } finally {
       setPassword('');
       setBusy(false);
+      onPendingChange?.(false);
     }
   };
 
@@ -93,16 +110,16 @@ export const SolanaOnboarding = ({
     return (
       <section className="solana-wallet__card solana-onboarding">
         <h2>
-          {status.custody === 'shared'
+          {status.custody === 'shared' && !status.unlocked
             ? 'Solana account locked'
             : 'Set up Solana'}
         </h2>
         <p>
-          {status.custody === 'shared'
+          {status.custody === 'shared' && !status.unlocked
             ? 'Use your wallet password to unlock the Solana test account.'
             : 'Create a new disposable Devnet account or restore one with a test recovery phrase.'}
         </p>
-        {status.custody !== 'shared' && (
+        {(status.custody !== 'shared' || status.unlocked) && (
           <>
             <Button
               type="primary"
@@ -226,6 +243,7 @@ export const SolanaOnboarding = ({
         htmlType="submit"
         disabled={
           busy ||
+          uncertain ||
           !password ||
           (mode === 'create' && !saved) ||
           (mode === 'restore' && !phrase.trim())

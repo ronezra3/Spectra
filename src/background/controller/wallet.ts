@@ -567,6 +567,16 @@ export class WalletController extends BaseController {
     index: number
   ) =>
     getExperimentalSolanaWallet().importTestMnemonic(password, mnemonic, index);
+  experimentalSolanaAddShared = (
+    password: string,
+    mnemonic: string,
+    index: number
+  ) =>
+    getExperimentalSolanaWallet().addSharedTestMnemonic(
+      password,
+      mnemonic,
+      index
+    );
   experimentalSolanaSelect = (address: string) =>
     getExperimentalSolanaWallet().selectAccount(address);
 
