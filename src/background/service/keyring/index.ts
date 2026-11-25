@@ -208,6 +208,7 @@ export class KeyringService extends EventEmitter {
   private password: string | null = null;
   private lockGeneration = 0;
   private restoringKeyrings = false;
+  private persistenceQueue: Promise<void> = Promise.resolve();
 
   constructor() {
     super();
@@ -506,6 +507,8 @@ export class KeyringService extends EventEmitter {
    */
   async setLocked(): Promise<MemStoreState> {
     this.lockGeneration += 1;
+    // A stalled write from the previous session must not block a later one.
+    this.persistenceQueue = Promise.resolve();
     // set locked
     // release all transport before lock wallet
     this.keyrings.forEach((keyring) => {
@@ -1125,6 +1128,25 @@ export class KeyringService extends EventEmitter {
       );
     }
 
+    const generation = this.lockGeneration;
+    const operation = this.persistenceQueue.then(() =>
+      this.persistKeyringsForGeneration(generation)
+    );
+    // A failed write must not permanently block later persistence attempts.
+    this.persistenceQueue = operation.then(
+      () => undefined,
+      () => undefined
+    );
+    return operation;
+  }
+
+  private async persistKeyringsForGeneration(
+    generation: number
+  ): Promise<boolean> {
+    if (!this.isUnlocked() || generation !== this.lockGeneration) {
+      throw new Error('Wallet is locked');
+    }
+
     const serializedKeyrings = await Promise.all(
       this.keyrings.map((keyring) => {
         return Promise.all([keyring.type, keyring.serialize()]).then(
@@ -1138,6 +1160,9 @@ export class KeyringService extends EventEmitter {
         );
       })
     );
+    if (!this.isUnlocked() || generation !== this.lockGeneration) {
+      throw new Error('Wallet is locked');
+    }
 
     let hasEncryptedKeyringData = false;
     const unencryptedKeyringData = serializedKeyrings
@@ -1162,6 +1187,12 @@ export class KeyringService extends EventEmitter {
       password: this.password,
       persisted: true,
     });
+
+    if (!this.isUnlocked() || generation !== this.lockGeneration) {
+      // Encryption can populate the MV3 session key after a concurrent lock.
+      await passwordClearKey('keyring');
+      throw new Error('Wallet is locked');
+    }
 
     this.store.updateState({
       vault: encryptedString,
