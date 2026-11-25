@@ -7,18 +7,23 @@ support. Existing Ethereum provider routing and account storage remain separate.
 ## Local flow
 
 Build the Chrome MV3 extension with `MANIFEST_TYPE=chrome-mv3 OMNI_SOLANA_DISCOVERY=1 OMNI_SOLANA_READONLY=1 yarn build:dev`, load
-it in an isolated extension profile, and open the extension tab at
-`#/experimental/solana-wallet`. Unlock the existing Rabby test wallet, create
-a separate Solana test vault with a disposable test password, and import a
-publicly known test mnemonic at `m/44'/501'/account'/0'`. Never enter a real
-recovery phrase or use real funds.
+it in an isolated extension profile. Unlock the existing Rabby test wallet and
+choose Solana Devnet in the dashboard view selector. A fresh test installation
+creates or restores its first Solana account in the main encrypted wallet vault
+using the main wallet test password. A legacy installation can continue using its
+separate vault or explicitly copy its accounts into the main vault. Use only
+disposable test phrases at `m/44'/501'/account'/0'`; never enter a real recovery
+phrase or use real funds.
 
-The vault stores only password-encrypted data in a dedicated IndexedDB. Writes
-use an atomic compare-and-write transaction. Solana secrets are not added to the
-legacy EVM account lists, the EVM vault, or the EVM sync export. Existing EVM
-lock/unlock invalidates Solana sessions and clears the in-memory Solana keyring.
-Vault recovery currently means re-entering the same test mnemonic and index;
-there is no wallet backup/export flow or remembered mnemonic.
+The legacy vault stores encrypted data in IndexedDB using compare-and-write.
+Migration retains that ciphertext and stores a fingerprint in the encrypted
+target keyring; a changed source blocks shared signing until reconciliation.
+Native custody has a distinct encrypted marker and fails closed if a legacy
+source appears. Both paths require acknowledged target storage before use.
+Solana secrets stay out of unencrypted keyring data and ordinary EVM account
+lists. Main wallet lock/unlock invalidates Solana sessions. Solana recovery
+currently requires its own test mnemonic and index; it is not automatically
+linked to an EVM seed and there is no complete backup/export flow.
 
 ## Trust and consent
 
@@ -55,7 +60,11 @@ needed or permitted for this experiment.
   tested before any release claims. JavaScript cannot guarantee that all
   immutable copies of secrets are wiped from memory.
 - Keep secrets out of page contexts, logs, telemetry and the unencrypted EVM
-  keyring mirror. Do not register `SolanaKeyring` with `KeyringService`:
-  `persistAllKeyrings` and legacy lookup paths have distinct assumptions.
+  keyring mirror. The encrypted keyring service now restores the explicitly
+  tagged Solana keyring, while ordinary EVM lookup and creation paths remain
+  isolated. Shared custody is not a general-purpose keyring integration.
+- The dashboard selector currently switches views, not individual EVM networks
+  or dApp network state. First-time native custody needs fresh-profile browser
+  testing, and account association and source reconciliation remain unfinished.
 
 Reference: https://solana.com/developers/cookbook/wallets/restore-from-mnemonic
