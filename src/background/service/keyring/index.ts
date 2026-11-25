@@ -1286,6 +1286,70 @@ export class KeyringService extends EventEmitter {
     });
   }
 
+  /** Background-only; caller must reject existing legacy vaults and guard its session. */
+  async createNativeSolanaTestAccount(
+    mnemonic: string,
+    accountIndex: number,
+    assertCurrent: () => void
+  ): Promise<string> {
+    if (!this.isUnlocked()) throw new Error('Wallet is locked');
+    const generation = this.lockGeneration;
+    return this.enqueuePersistence(async () => {
+      const flush = this.persistenceFlusher;
+      if (!flush)
+        throw new Error('Keyring storage acknowledgement unavailable');
+      if (!this.isUnlocked() || generation !== this.lockGeneration)
+        throw new Error('Wallet is locked');
+      assertCurrent();
+      if (this.getKeyringsByType(SOLANA_KEYRING_TYPE).length)
+        throw new Error('Solana destination already exists');
+      this.solanaMigrationAcknowledged = false;
+      const candidate = new SolanaKeyring();
+      let committed = false;
+      try {
+        const address = await candidate.addAccountFromMnemonic(
+          mnemonic,
+          accountIndex
+        );
+        candidate.markNativeDevnetCustody();
+        if (!this.isUnlocked() || generation !== this.lockGeneration)
+          throw new Error('Wallet is locked');
+        assertCurrent();
+        this.keyrings.push(candidate);
+        await this.persistKeyringsForGeneration(
+          generation,
+          assertCurrent,
+          () => {
+            committed = true;
+          }
+        );
+        await flush();
+        if (!this.isUnlocked() || generation !== this.lockGeneration)
+          throw new Error('Wallet is locked');
+        assertCurrent();
+        this.solanaMigrationAcknowledged = true;
+        return address;
+      } finally {
+        if (!committed) {
+          this.keyrings = this.keyrings.filter((item) => item !== candidate);
+          candidate.cleanUp();
+        }
+      }
+    });
+  }
+
+  /** Does not itself authorize signing or select the account. */
+  hasAcknowledgedNativeSolanaCustody(): boolean {
+    const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);
+    return (
+      this.isUnlocked() &&
+      this.solanaMigrationAcknowledged &&
+      keyrings.length === 1 &&
+      keyrings[0] instanceof SolanaKeyring &&
+      keyrings[0].isNativeDevnetCustody()
+    );
+  }
+
   /** Background-only; caller authenticates the source and invalidates consent. */
   async addSharedSolanaTestAccount(
     mnemonic: string,
