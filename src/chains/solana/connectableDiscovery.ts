@@ -1,7 +1,7 @@
 import type { Wallet, WalletAccount } from '@wallet-standard/base';
 import { base58 } from '@scure/base';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-import { Message } from '@/utils/message';
+import BroadcastChannelMessage from '@/utils/message/broadcastChannelMessage';
 import { parseSolanaReadOnlyAddress } from './readOnlyAddress';
 import { EXPERIMENTAL_WALLET_ICON } from './experimentalIcon';
 
@@ -13,7 +13,7 @@ export function createConnectableSolanaWallet(): Wallet {
   let accounts: readonly WalletAccount[] = Object.freeze([]);
   let generation = 0;
   const listeners = new Set<Listener>();
-  const channel = new Message.BroadcastChannelMessage({
+  const channel = new BroadcastChannelMessage({
     name: 'omni-solana-page',
     target: 'omni-solana-content',
   }).connect();
