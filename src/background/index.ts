@@ -109,6 +109,7 @@ const PERPS_WIDGET_RPC_ALLOWLIST = new Set<string>([
 import rpcCache from './utils/rpcCache';
 import { reportMessageError } from './utils/messageErrorReporter';
 import { storage } from './webapi';
+import { OrderedStateWriter } from './service/keyring/orderedStateWriter';
 import { metamaskModeService } from './service/metamaskModeService';
 import { ga4 } from '@/utils/ga4';
 import { ALARMS_SYNC_DEFAULT_RPC, ALARMS_USER_ENABLE } from './utils/alarms';
@@ -140,7 +141,15 @@ async function restoreAppState() {
   await onInstall();
   const keyringState = await storage.get('keyringState');
   keyringService.loadStore(keyringState);
-  keyringService.store.subscribe((value) => storage.set('keyringState', value));
+  const keyringWriter = new OrderedStateWriter((value) =>
+    storage.set('keyringState', value)
+  );
+  keyringService.store.subscribe((value) => {
+    void keyringWriter.enqueue(value).catch(() => {
+      // Do not include encrypted or unencrypted keyring state in logs.
+      console.error('Could not persist keyring state');
+    });
+  });
   keyringService.sanitizeUnencryptedKeyringDataInStore();
   await initializeOpenapiRuntime();
 
