@@ -65,6 +65,12 @@ test('an isolated Rabby vault round-trips EVM and Solana without a plaintext mir
   );
   await service.setLocked();
   expect(await service.getSolanaAccounts()).toEqual([]);
+  // A persisted Solana keyring must remain recoverable without registering
+  // it as a generically creatable keyring in the application.
+  service.keyringTypes = service.keyringTypes.filter(
+    (type) => type.type !== SOLANA_KEYRING_TYPE
+  );
+  expect(service.getKeyringClassForType(SOLANA_KEYRING_TYPE)).toBeUndefined();
   await expect(service.submitPassword('wrong-test-password')).rejects.toThrow();
   expect(service.isUnlocked()).toBe(false);
   expect(await service.getSolanaAccounts()).toEqual([]);
