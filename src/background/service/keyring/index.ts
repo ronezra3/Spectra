@@ -1286,6 +1286,74 @@ export class KeyringService extends EventEmitter {
     });
   }
 
+  /** Background-only; caller authenticates the source and invalidates consent. */
+  async addSharedSolanaTestAccount(
+    mnemonic: string,
+    accountIndex: number,
+    assertSourceCurrent: () => void
+  ): Promise<string> {
+    if (!this.isUnlocked()) throw new Error('Wallet is locked');
+    const generation = this.lockGeneration;
+    return this.enqueuePersistence(async () => {
+      const flush = this.persistenceFlusher;
+      if (!flush)
+        throw new Error('Keyring storage acknowledgement unavailable');
+      if (!this.isUnlocked() || generation !== this.lockGeneration)
+        throw new Error('Wallet is locked');
+      assertSourceCurrent();
+      const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);
+      if (!this.hasAcknowledgedSolanaMigration() || keyrings.length !== 1)
+        throw new Error('Shared Solana account unavailable');
+      const original = keyrings[0] as SolanaKeyring;
+      const position = this.keyrings.indexOf(original);
+      const candidate = new SolanaKeyring();
+      let installed = false;
+      let committed = false;
+      try {
+        await candidate.deserialize(await original.serialize());
+        const address = await candidate.addAccountFromMnemonic(
+          mnemonic,
+          accountIndex
+        );
+        if (!this.isUnlocked() || generation !== this.lockGeneration)
+          throw new Error('Wallet is locked');
+        assertSourceCurrent();
+        if (this.keyrings[position] !== original)
+          throw new Error('Shared Solana account unavailable');
+        this.solanaMigrationAcknowledged = false;
+        this.keyrings[position] = candidate;
+        installed = true;
+        await this.persistKeyringsForGeneration(
+          generation,
+          assertSourceCurrent,
+          () => {
+            committed = true;
+          }
+        );
+        await flush();
+        if (!this.isUnlocked() || generation !== this.lockGeneration)
+          throw new Error('Wallet is locked');
+        assertSourceCurrent();
+        this.solanaMigrationAcknowledged = true;
+        return address;
+      } finally {
+        if (
+          installed &&
+          !committed &&
+          this.isUnlocked() &&
+          generation === this.lockGeneration &&
+          this.keyrings[position] === candidate
+        ) {
+          this.keyrings[position] = original;
+          this.solanaMigrationAcknowledged = true;
+        } else if (installed) {
+          original.cleanUp();
+        }
+        if (!committed) candidate.cleanUp();
+      }
+    });
+  }
+
   /** Selection hint only; callers must still enforce account and approval rules. */
   hasAcknowledgedSolanaMigration(): boolean {
     const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);

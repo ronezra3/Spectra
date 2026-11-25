@@ -84,6 +84,120 @@ async function setup(withFlusher = true) {
 }
 afterEach(() => jest.restoreAllMocks());
 
+test('fails closed when locking during shared account encryption', async () => {
+  const { target, source, solanaAddress } = await setup();
+  await source.withAuthenticatedMigrationSnapshot(
+    'source-test-password',
+    async (snapshot, check, fingerprint) => {
+      await target.importSolanaMigrationSnapshot(snapshot, check, fingerprint);
+    }
+  );
+  const before = target.store.getState().vault;
+  const originalEncrypt = passwordUtils.passwordEncrypt;
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  jest
+    .spyOn(passwordUtils, 'passwordEncrypt')
+    .mockImplementation(async (input) => {
+      entered();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return originalEncrypt(input);
+    });
+  const pending = target.addSharedSolanaTestAccount(phrase, 1, () => {});
+  const rejection = expect(pending).rejects.toThrow();
+  await started;
+  await target.setLocked();
+  release();
+  await rejection;
+  expect(target.store.getState().vault).toBe(before);
+  jest.restoreAllMocks();
+  await target.submitPassword('target-test-password');
+  expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
+test('treats a failed shared account storage acknowledgement as uncertain', async () => {
+  const { target, source } = await setup();
+  await source.withAuthenticatedMigrationSnapshot(
+    'source-test-password',
+    async (snapshot, check, fingerprint) => {
+      await target.importSolanaMigrationSnapshot(snapshot, check, fingerprint);
+    }
+  );
+  target.setPersistenceFlusher(async () => {
+    throw new Error('storage failed');
+  });
+  await expect(
+    target.addSharedSolanaTestAccount(phrase, 1, () => {})
+  ).rejects.toThrow('storage failed');
+  expect(target.hasAcknowledgedSolanaMigration()).toBe(false);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
+test('adds a derived test account to the encrypted shared keyring and restores it', async () => {
+  const {
+    target,
+    source,
+    storage,
+    solanaAddress,
+    evmAddresses,
+  } = await setup();
+  await source.withAuthenticatedMigrationSnapshot(
+    'source-test-password',
+    async (snapshot, check, fingerprint) => {
+      await target.importSolanaMigrationSnapshot(snapshot, check, fingerprint);
+    }
+  );
+  const before = storage.value;
+  const added = await target.addSharedSolanaTestAccount(phrase, 1, () => {});
+  expect(added).not.toBe(solanaAddress);
+  expect(await target.getSolanaAccounts()).toEqual([solanaAddress, added]);
+  expect(await target.getAccounts()).toEqual(
+    evmAddresses.map(normalizeAddress)
+  );
+  expect(storage.value).toBe(before);
+  await expect(
+    target.addSharedSolanaTestAccount(phrase, 1, () => {})
+  ).rejects.toThrow('already exists');
+  const persisted = target.store.getState();
+  await target.setLocked();
+  const restarted = new KeyringService();
+  restarted.loadStore(persisted);
+  await restarted.submitPassword('target-test-password');
+  expect(await restarted.getSolanaAccounts()).toEqual([solanaAddress, added]);
+  await restarted.setLocked();
+  source.lock();
+}, 30000);
+
+test('does not add a shared account if the source check fails before commit', async () => {
+  const { target, source, solanaAddress } = await setup();
+  await source.withAuthenticatedMigrationSnapshot(
+    'source-test-password',
+    async (snapshot, check, fingerprint) => {
+      await target.importSolanaMigrationSnapshot(snapshot, check, fingerprint);
+    }
+  );
+  const before = target.store.getState().vault;
+  let checks = 0;
+  await expect(
+    target.addSharedSolanaTestAccount(phrase, 1, () => {
+      checks += 1;
+      if (checks === 2) throw new Error('source changed');
+    })
+  ).rejects.toThrow('source changed');
+  expect(target.store.getState().vault).toBe(before);
+  expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
 test('copies into an encrypted target, preserves EVM and retains the source', async () => {
   const {
     target,
