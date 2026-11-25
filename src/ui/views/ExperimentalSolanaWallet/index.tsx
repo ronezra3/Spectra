@@ -135,24 +135,26 @@ const ExperimentalSolanaWallet = ({
 
   return (
     <main className="solana-wallet">
-      <button
-        className="solana-wallet__back"
-        type="button"
-        disabled={sendPending || migrationPending || aligning}
-        onClick={() =>
-          view === 'overview' || !status?.unlocked
-            ? onExit
-              ? onExit()
-              : history.push('/dashboard')
-            : setView('overview')
-        }
-      >
-        {view === 'overview' || !status?.unlocked
-          ? '← Back to wallet'
-          : '← Back to Solana'}
-      </button>
+      {(!onExit || view !== 'overview') && (
+        <button
+          className="solana-wallet__back"
+          type="button"
+          disabled={sendPending || migrationPending || aligning}
+          onClick={() =>
+            view === 'overview' || !status?.unlocked
+              ? onExit
+                ? onExit()
+                : history.push('/dashboard')
+              : setView('overview')
+          }
+        >
+          {view === 'overview' || !status?.unlocked
+            ? '← Back to wallet'
+            : '← Back to Solana'}
+        </button>
+      )}
       <header className="solana-wallet__header">
-        <h1>Solana wallet</h1>
+        <h1>Solana</h1>
         <span className="solana-wallet__badge">Devnet</span>
       </header>
       <div className="solana-wallet__devnet-notice">
