@@ -92,6 +92,7 @@ test('copies into an encrypted target, preserves EVM and retains the source', as
     solanaAddress,
   } = await setup();
   const originalSource = storage.value;
+  expect(target.hasAcknowledgedSolanaMigration()).toBe(false);
   await source.withAuthenticatedMigrationSnapshot(
     'source-test-password',
     async (snapshot, assertCurrent) => {
@@ -101,6 +102,10 @@ test('copies into an encrypted target, preserves EVM and retains the source', as
     }
   );
   expect(storage.value).toBe(originalSource);
+  expect(target.hasAcknowledgedSolanaMigration()).toBe(true);
+  expect(JSON.stringify(target.store.getState())).not.toContain(
+    'legacy-devnet-v1'
+  );
   expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
   expect(await target.getAccounts()).toEqual(
     evmAddresses.map(normalizeAddress)
@@ -108,13 +113,18 @@ test('copies into an encrypted target, preserves EVM and retains the source', as
   expect(
     JSON.stringify(target.store.getState().unencryptedKeyringData)
   ).not.toContain(SOLANA_KEYRING_TYPE);
+  const persistedState = target.store.getState();
   await target.setLocked();
-  await target.submitPassword('target-test-password');
-  expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
-  expect(await target.getAccounts()).toEqual(
+  expect(target.hasAcknowledgedSolanaMigration()).toBe(false);
+  const restarted = new KeyringService();
+  restarted.loadStore(persistedState);
+  await restarted.submitPassword('target-test-password');
+  expect(restarted.hasAcknowledgedSolanaMigration()).toBe(true);
+  expect(await restarted.getSolanaAccounts()).toEqual([solanaAddress]);
+  expect(await restarted.getAccounts()).toEqual(
     evmAddresses.map(normalizeAddress)
   );
-  await target.setLocked();
+  await restarted.setLocked();
   source.lock();
 }, 30000);
 
@@ -266,6 +276,7 @@ test('failed storage acknowledgement retains source and reports an uncertain out
   ).rejects.toThrow('storage failed');
   expect(storage.value).toBe(oldSource);
   expect(await target.getSolanaAccounts()).toEqual([solanaAddress]);
+  expect(target.hasAcknowledgedSolanaMigration()).toBe(false);
   await target.setLocked();
   source.lock();
 }, 30000);
