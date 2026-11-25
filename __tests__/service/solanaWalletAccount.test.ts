@@ -1,4 +1,5 @@
 /** @jest-environment node */
+jest.mock('@/constant', () => ({ KEYRING_TYPE: { HdKeyring: 'HD Key Tree' } }));
 import { solanaWalletService } from '@/background/service/solanaWallet';
 const mockAddress = 'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk';
 let mockUnlocked = false;
@@ -6,6 +7,15 @@ let mockTargetAccounts: string[] = [];
 let mockFingerprint: string | null = null;
 let mockCiphertext: string | null = 'encrypted';
 let mockNativeCustody = false;
+let mockCurrentAccount: {
+  address: string;
+  type: string;
+  brandName: string;
+} | null = null;
+jest.mock('@/background/service/preference', () => ({
+  __esModule: true,
+  default: { getCurrentAccount: () => mockCurrentAccount },
+}));
 const mockImportSnapshot = jest.fn(async (fingerprint: string) => {
   mockFingerprint = fingerprint;
   mockTargetAccounts = [mockAddress];
@@ -24,6 +34,12 @@ const mockCreateNative = jest.fn(async (_mnemonic, _index, check) => {
   mockTargetAccounts = [mockAddedAddress];
   return mockAddedAddress;
 });
+const mockCreateLinked = jest.fn(async (_evmAddress, _index, check) => {
+  check();
+  mockNativeCustody = true;
+  mockTargetAccounts = [mockAddedAddress];
+  return mockAddedAddress;
+});
 jest.mock('@/background/service/keyring', () => ({
   __esModule: true,
   default: {
@@ -37,6 +53,11 @@ jest.mock('@/background/service/keyring', () => ({
       index: number,
       check: () => void
     ) => mockCreateNative(mnemonic, index, check),
+    createNativeSolanaTestAccountFromEvmSeed: (
+      evmAddress: string,
+      index: number,
+      check: () => void
+    ) => mockCreateLinked(evmAddress, index, check),
     verifyPassword: async (password: string) => {
       if (password !== 'test-password') throw new Error('wrong password');
     },
@@ -108,13 +129,64 @@ jest.mock('@/background/controller/solanaConnectApproval', () => ({
 beforeEach(() => {
   mockFingerprint = null;
   mockNativeCustody = false;
+  mockCurrentAccount = null;
   mockCiphertext = 'encrypted';
   mockTargetAccounts = [];
   mockImportSnapshot.mockClear();
   mockSharedSign.mockClear();
   mockAddShared.mockClear();
   mockCreateNative.mockClear();
+  mockCreateLinked.mockClear();
   solanaWalletService.lockForWalletBoundary();
+});
+
+test('requires an authenticated selected EVM HD account to create a linked Solana account', async () => {
+  mockCiphertext = null;
+  await expect(
+    solanaWalletService.createNativeTestFromCurrentEvm('test-password', 0)
+  ).rejects.toThrow('no supported seed');
+  mockCurrentAccount = {
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+    brandName: 'HD Key Tree',
+  };
+  await expect(
+    solanaWalletService.createNativeTestFromCurrentEvm('wrong', 0)
+  ).rejects.toThrow('wrong password');
+  expect(mockCreateLinked).not.toHaveBeenCalled();
+  await expect(
+    solanaWalletService.createNativeTestFromCurrentEvm('test-password', 0)
+  ).resolves.toBe(mockAddedAddress);
+  expect(mockCreateLinked).toHaveBeenCalledWith(
+    mockCurrentAccount.address,
+    0,
+    expect.any(Function)
+  );
+  expect(solanaWalletService.getSelectedAccount()?.address).toBe(
+    mockAddedAddress
+  );
+});
+
+test('rejects linked creation if the selected EVM account changes during persistence', async () => {
+  mockCiphertext = null;
+  mockCurrentAccount = {
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+    brandName: 'HD Key Tree',
+  };
+  mockCreateLinked.mockImplementationOnce(async (_address, _index, check) => {
+    mockCurrentAccount = {
+      address: '0x0000000000000000000000000000000000000002',
+      type: 'HD Key Tree',
+      brandName: 'HD Key Tree',
+    };
+    check();
+    return mockAddedAddress;
+  });
+  await expect(
+    solanaWalletService.createNativeTestFromCurrentEvm('test-password', 0)
+  ).rejects.toThrow('expired');
+  expect(solanaWalletService.getSelectedAccount()).toBeNull();
 });
 
 test('creates native test custody only after wallet authentication and checks the legacy source', async () => {
