@@ -18,6 +18,12 @@ const mockAddShared = jest.fn(async (_mnemonic, _index, check) => {
   mockTargetAccounts.push(mockAddedAddress);
   return mockAddedAddress;
 });
+const mockCreateNative = jest.fn(async (_mnemonic, _index, check) => {
+  check();
+  mockNativeCustody = true;
+  mockTargetAccounts = [mockAddedAddress];
+  return mockAddedAddress;
+});
 jest.mock('@/background/service/keyring', () => ({
   __esModule: true,
   default: {
@@ -26,6 +32,11 @@ jest.mock('@/background/service/keyring', () => ({
     getKeyringsByType: () => [],
     getSolanaMigrationSourceFingerprint: () => mockFingerprint,
     hasAcknowledgedNativeSolanaCustody: () => mockNativeCustody,
+    createNativeSolanaTestAccount: (
+      mnemonic: string,
+      index: number,
+      check: () => void
+    ) => mockCreateNative(mnemonic, index, check),
     verifyPassword: async (password: string) => {
       if (password !== 'test-password') throw new Error('wrong password');
     },
@@ -102,7 +113,68 @@ beforeEach(() => {
   mockImportSnapshot.mockClear();
   mockSharedSign.mockClear();
   mockAddShared.mockClear();
+  mockCreateNative.mockClear();
   solanaWalletService.lockForWalletBoundary();
+});
+
+test('creates native test custody only after wallet authentication and checks the legacy source', async () => {
+  mockCiphertext = null;
+  await expect(
+    solanaWalletService.createNativeTestMnemonic('wrong', 'test phrase', 0)
+  ).rejects.toThrow('wrong password');
+  expect(mockCreateNative).not.toHaveBeenCalled();
+  await expect(
+    solanaWalletService.createNativeTestMnemonic(
+      'test-password',
+      'test phrase',
+      0
+    )
+  ).resolves.toBe(mockAddedAddress);
+  expect(solanaWalletService.getSelectedAccount()?.address).toBe(
+    mockAddedAddress
+  );
+  expect((await solanaWalletService.status()).custody).toBe('shared');
+});
+
+test('never starts native test custody when a legacy vault exists', async () => {
+  await expect(
+    solanaWalletService.createNativeTestMnemonic(
+      'test-password',
+      'test phrase',
+      0
+    )
+  ).rejects.toThrow('already exists');
+  expect(mockCreateNative).not.toHaveBeenCalled();
+});
+
+test('blocks legacy vault creation while native custody creation is pending', async () => {
+  mockCiphertext = null;
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  mockCreateNative.mockImplementationOnce(async (_mnemonic, _index, check) => {
+    entered();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    check();
+    mockNativeCustody = true;
+    mockTargetAccounts = [mockAddedAddress];
+    return mockAddedAddress;
+  });
+  const operation = solanaWalletService.createNativeTestMnemonic(
+    'test-password',
+    'test phrase',
+    0
+  );
+  await started;
+  await expect(solanaWalletService.create('test-password')).rejects.toThrow(
+    'setup is pending'
+  );
+  release();
+  await expect(operation).resolves.toBe(mockAddedAddress);
 });
 
 test('uses native shared custody only when no legacy source exists', async () => {
