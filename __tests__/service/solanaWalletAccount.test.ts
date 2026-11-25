@@ -41,6 +41,11 @@ const mockCreateLinked = jest.fn(async (_evmAddress, _index, check) => {
   mockTargetAccounts = [mockAddedAddress];
   return mockAddedAddress;
 });
+const mockAddLinked = jest.fn(async (_evmAddress, _index, check) => {
+  check();
+  mockTargetAccounts.push(mockAddedAddress);
+  return mockAddedAddress;
+});
 jest.mock('@/background/service/keyring', () => ({
   __esModule: true,
   default: {
@@ -61,6 +66,11 @@ jest.mock('@/background/service/keyring', () => ({
       index: number,
       check: () => void
     ) => mockCreateLinked(evmAddress, index, check),
+    addSharedSolanaTestAccountFromEvmSeed: (
+      evmAddress: string,
+      index: number,
+      check: () => void
+    ) => mockAddLinked(evmAddress, index, check),
     verifyPassword: async (password: string) => {
       if (password !== 'test-password') throw new Error('wrong password');
     },
@@ -142,7 +152,38 @@ beforeEach(() => {
   mockAddShared.mockClear();
   mockCreateNative.mockClear();
   mockCreateLinked.mockClear();
+  mockAddLinked.mockClear();
   solanaWalletService.lockForWalletBoundary();
+});
+
+test('requires the matching selected EVM account and main password to add a linked account', async () => {
+  mockNativeCustody = true;
+  mockCiphertext = null;
+  mockTargetAccounts = [mockAddress];
+  mockCurrentAccount = {
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+    brandName: 'HD Key Tree',
+  };
+  await solanaWalletService.status();
+  await expect(
+    solanaWalletService.addSharedTestFromCurrentEvm(
+      'wrong',
+      1,
+      mockCurrentAccount.address
+    )
+  ).rejects.toThrow('wrong password');
+  expect(mockAddLinked).not.toHaveBeenCalled();
+  await expect(
+    solanaWalletService.addSharedTestFromCurrentEvm(
+      'test-password',
+      1,
+      mockCurrentAccount.address
+    )
+  ).resolves.toBe(mockAddedAddress);
+  expect(solanaWalletService.getSelectedAccount()?.address).toBe(
+    mockAddedAddress
+  );
 });
 
 test('selects only a verified link and leaves an unlinked selection unchanged', async () => {

@@ -168,8 +168,8 @@ const ExperimentalSolanaWallet = ({
       {error && <p role="alert">{error}</p>}
       {association === 'not-linked' && status?.unlocked && status.selected && (
         <p className="solana-wallet__notice">
-          This Solana test account is not linked to the selected EVM account.
-          Check the address before using it.
+          No unique Solana test account was verified for the selected EVM
+          account. Check the address before using it.
         </p>
       )}
       {association === 'manual' && status?.unlocked && status.selected && (

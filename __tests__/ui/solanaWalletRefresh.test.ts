@@ -128,9 +128,7 @@ test('aligns a linked account before loading the view and labels an unlinked one
     ).toBeLessThan(
       mockWallet.experimentalSolanaStatus.mock.invocationCallOrder[0]
     );
-    expect(container.textContent).toContain(
-      'not linked to the selected EVM account'
-    );
+    expect(container.textContent).toContain('No unique Solana test account');
     expect(container.querySelectorAll('[data-testid="assets"]')).toHaveLength(
       1
     );
@@ -170,13 +168,9 @@ test('does not render the previous EVM account result after the selection change
     await act(async () =>
       root.render(createElement(SolanaWallet, { evmAccount: second }))
     );
-    expect(container.textContent).toContain(
-      'not linked to the selected EVM account'
-    );
+    expect(container.textContent).toContain('No unique Solana test account');
     await act(async () => release('selected'));
-    expect(container.textContent).toContain(
-      'not linked to the selected EVM account'
-    );
+    expect(container.textContent).toContain('No unique Solana test account');
   } finally {
     act(() => root.unmount());
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
