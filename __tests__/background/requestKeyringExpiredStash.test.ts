@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import { runInNewContext } from 'vm';
 import * as ts from 'typescript';
 import { KEYRING_IMPORT_EXPIRED } from '@/constant/message';
+import { SOLANA_KEYRING_TYPE } from '@/background/service/keyring/solanaKeyringType';
 
 // Run the real requestKeyring without booting every background service.
 const source = ts.createSourceFile(
@@ -37,6 +38,7 @@ const createWallet = (stashKeyrings: Record<number, any>) =>
     {
       stashKeyrings,
       KEYRING_IMPORT_EXPIRED,
+      SOLANA_KEYRING_TYPE,
       REQUEST_KEYRING_METHOD_ALLOWLIST: new Set(['getAccounts']),
     }
   );
@@ -47,6 +49,18 @@ test('a stash ID lost to a worker restart rejects with a coded error, not a Type
     .catch((e: unknown) => e);
   expect(error).not.toBeInstanceOf(TypeError);
   expect(error).toMatchObject({ code: KEYRING_IMPORT_EXPIRED });
+});
+
+test('generic keyring requests reject Solana by declared or actual stash type', async () => {
+  const solana = { type: SOLANA_KEYRING_TYPE, getAccounts: jest.fn() };
+  const wallet = createWallet({ 7: solana });
+  await expect(
+    wallet.requestKeyring(SOLANA_KEYRING_TYPE, 'getAccounts', 7)
+  ).rejects.toThrow('Solana-specific');
+  await expect(
+    wallet.requestKeyring('HD Key Tree', 'getAccounts', 7)
+  ).rejects.toThrow('Solana-specific');
+  expect(solana.getAccounts).not.toHaveBeenCalled();
 });
 
 test('a live stash ID still reaches its keyring', async () => {

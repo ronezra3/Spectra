@@ -1902,6 +1902,10 @@ export class KeyringService extends EventEmitter {
    * @returns {Promise<Object>} A keyring display object, with type and accounts properties.
    */
   displayForKeyring(keyring, includeHidden = true): Promise<DisplayedKeryring> {
+    if (keyring?.type === SOLANA_KEYRING_TYPE)
+      return Promise.reject(
+        new Error('Solana accounts require a Solana-specific display')
+      );
     const hiddenAddresses = preference.getHiddenAddresses();
     const accounts: Promise<
       ({ address: string; brandName: string } | string)[]
