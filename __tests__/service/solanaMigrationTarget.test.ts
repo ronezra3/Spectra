@@ -84,6 +84,62 @@ async function setup(withFlusher = true) {
 }
 afterEach(() => jest.restoreAllMocks());
 
+test('native custody does not become active when storage acknowledgement fails', async () => {
+  const { target, source } = await setup();
+  target.setPersistenceFlusher(async () => {
+    throw new Error('storage failed');
+  });
+  await expect(
+    target.createNativeSolanaTestAccount(phrase, 0, () => {})
+  ).rejects.toThrow('storage failed');
+  expect(target.hasAcknowledgedNativeSolanaCustody()).toBe(false);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
+test('creates native test custody only in the encrypted wallet and restores it', async () => {
+  const { target, source, evmAddresses } = await setup();
+  const address = await target.createNativeSolanaTestAccount(
+    phrase,
+    1,
+    () => {}
+  );
+  expect(target.hasAcknowledgedNativeSolanaCustody()).toBe(true);
+  expect(target.hasAcknowledgedSolanaMigration()).toBe(false);
+  expect(await target.getAccounts()).toEqual(
+    evmAddresses.map(normalizeAddress)
+  );
+  expect(
+    JSON.stringify(target.store.getState().unencryptedKeyringData)
+  ).not.toContain(SOLANA_KEYRING_TYPE);
+  const state = target.store.getState();
+  await expect(
+    target.createNativeSolanaTestAccount(phrase, 2, () => {})
+  ).rejects.toThrow('destination already exists');
+  await target.setLocked();
+  const restarted = new KeyringService();
+  restarted.loadStore(state);
+  await restarted.submitPassword('target-test-password');
+  expect(restarted.hasAcknowledgedNativeSolanaCustody()).toBe(true);
+  expect(await restarted.getSolanaAccounts()).toEqual([address]);
+  await restarted.setLocked();
+  source.lock();
+}, 30000);
+
+test('does not create native custody when the caller detects an existing source', async () => {
+  const { target, source } = await setup();
+  const before = target.store.getState().vault;
+  await expect(
+    target.createNativeSolanaTestAccount(phrase, 0, () => {
+      throw new Error('source exists');
+    })
+  ).rejects.toThrow('source exists');
+  expect(target.store.getState().vault).toBe(before);
+  expect(await target.getSolanaAccounts()).toEqual([]);
+  await target.setLocked();
+  source.lock();
+}, 30000);
+
 test('fails closed when locking during shared account encryption', async () => {
   const { target, source, solanaAddress } = await setup();
   await source.withAuthenticatedMigrationSnapshot(
