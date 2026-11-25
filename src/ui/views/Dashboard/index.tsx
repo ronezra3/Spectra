@@ -37,6 +37,10 @@ import {
   WalletViewSelector,
   WalletView,
 } from './components/WalletViewSelector';
+import {
+  readWalletView,
+  writeWalletView,
+} from './components/walletViewPreference';
 
 let SolanaWallet: React.ComponentType<{
   onExit: () => void;
@@ -51,7 +55,13 @@ if (
 }
 
 const Dashboard = () => {
-  const [walletFamily, setWalletFamily] = useState<WalletView>('evm');
+  const [walletFamily, setWalletFamily] = useState<WalletView>(() =>
+    SolanaWallet ? readWalletView() : 'evm'
+  );
+  const selectWalletView = (view: WalletView) => {
+    setWalletFamily(view);
+    writeWalletView(view);
+  };
   const [solanaPending, setSolanaPending] = useState(false);
   const history = useHistory();
   const wallet = useWallet();
@@ -248,12 +258,12 @@ const Dashboard = () => {
             <WalletViewSelector
               value={walletFamily}
               disabled={solanaPending}
-              onChange={setWalletFamily}
+              onChange={selectWalletView}
             />
           )}
           {walletFamily === 'solana' && SolanaWallet ? (
             <SolanaWallet
-              onExit={() => setWalletFamily('evm')}
+              onExit={() => selectWalletView('evm')}
               onPendingChange={setSolanaPending}
             />
           ) : (
