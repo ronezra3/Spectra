@@ -1292,6 +1292,19 @@ export class KeyringService extends EventEmitter {
     accountIndex: number,
     assertCurrent: () => void
   ): Promise<string> {
+    return this.persistNativeSolanaTestAccount(
+      mnemonic,
+      accountIndex,
+      assertCurrent
+    );
+  }
+
+  private async persistNativeSolanaTestAccount(
+    mnemonic: string,
+    accountIndex: number,
+    assertCurrent: () => void,
+    evmAssociation?: { evmAddress: string; expectedSolanaAddress: string }
+  ): Promise<string> {
     if (!this.isUnlocked()) throw new Error('Wallet is locked');
     const generation = this.lockGeneration;
     return this.enqueuePersistence(async () => {
@@ -1311,6 +1324,15 @@ export class KeyringService extends EventEmitter {
           mnemonic,
           accountIndex
         );
+        if (evmAssociation) {
+          if (address !== evmAssociation.expectedSolanaAddress)
+            throw new Error('Solana derivation changed');
+          await candidate.associateEvmAccount({
+            evmAddress: evmAssociation.evmAddress,
+            solanaAddress: address,
+            accountIndex,
+          });
+        }
         candidate.markNativeDevnetCustody();
         if (!this.isUnlocked() || generation !== this.lockGeneration)
           throw new Error('Wallet is locked');
@@ -1401,6 +1423,74 @@ export class KeyringService extends EventEmitter {
     } finally {
       candidate.cleanUp();
     }
+  }
+
+  /** Background-only; caller authenticates the user and guards legacy storage. */
+  async createNativeSolanaTestAccountFromEvmSeed(
+    evmAddress: string,
+    accountIndex: number,
+    assertCurrent: () => void
+  ): Promise<string> {
+    const generation = this.lockGeneration;
+    const preview = await this.previewSolanaTestAddressFromEvmSeed(
+      evmAddress,
+      accountIndex
+    );
+    const lowerAddress = evmAddress.toLowerCase();
+    const sources = this.getKeyringsByType(
+      KEYRING_TYPE.HdKeyring
+    ) as HdKeyring[];
+    // Synchronous account lists allow the persistence guard to recheck membership.
+    if (
+      sources.some(
+        (source) => !Array.isArray(source.accounts) || !source.accounts.length
+      )
+    )
+      throw new Error('EVM seed account is unavailable or ambiguous');
+    const matching = sources.filter((source) =>
+      source.accounts.some((account) => account.toLowerCase() === lowerAddress)
+    );
+    if (matching.length !== 1 || !matching[0].mnemonic)
+      throw new Error('EVM seed account is unavailable or ambiguous');
+    const source = matching[0];
+    const mnemonic = source.mnemonic!;
+    const assertSource = () => {
+      assertCurrent();
+      const currentSources = this.getKeyringsByType(
+        KEYRING_TYPE.HdKeyring
+      ) as HdKeyring[];
+      if (
+        !this.isUnlocked() ||
+        generation !== this.lockGeneration ||
+        !currentSources.includes(source) ||
+        source.mnemonic !== mnemonic ||
+        source.isSlip39 ||
+        source.needPassphrase ||
+        !!source.passphrase ||
+        currentSources.some(
+          (entry) => !Array.isArray(entry.accounts) || !entry.accounts.length
+        ) ||
+        currentSources.filter((entry) =>
+          entry.accounts.some(
+            (account) => account.toLowerCase() === lowerAddress
+          )
+        ).length !== 1 ||
+        !source.accounts.some(
+          (account) => account.toLowerCase() === lowerAddress
+        )
+      )
+        throw new Error('EVM seed account changed');
+    };
+    assertSource();
+    return this.persistNativeSolanaTestAccount(
+      mnemonic,
+      accountIndex,
+      assertSource,
+      {
+        evmAddress,
+        expectedSolanaAddress: preview,
+      }
+    );
   }
 
   /** Does not itself authorize signing or select the account. */
