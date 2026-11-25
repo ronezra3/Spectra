@@ -67,3 +67,23 @@ test('legacy migration metadata remains readable but cannot identify a source sn
   ).rejects.toThrow('Invalid vault');
   keyring.cleanUp();
 });
+
+test('native custody metadata round-trips without impersonating a migration', async () => {
+  const keyring = new SolanaKeyring();
+  await keyring.deserialize({ version: 1, secretKeys: [testSecret] });
+  keyring.markNativeDevnetCustody();
+  const data = await keyring.serialize();
+  expect(data.custody).toBe('native-devnet-v1');
+  expect(keyring.isMigratedFromLegacyDevnet()).toBe(false);
+  expect(keyring.getMigrationSourceFingerprint()).toBeNull();
+  const restored = new SolanaKeyring();
+  await restored.deserialize(data);
+  expect(restored.isNativeDevnetCustody()).toBe(true);
+  expect(await restored.getAccounts()).toEqual([testAddress]);
+  await expect(
+    restored.deserialize({ ...data, migration: 'legacy-devnet-v1' })
+  ).rejects.toThrow('Invalid vault');
+  expect(restored.isNativeDevnetCustody()).toBe(true);
+  keyring.cleanUp();
+  restored.cleanUp();
+});

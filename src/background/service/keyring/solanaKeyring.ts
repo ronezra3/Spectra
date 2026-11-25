@@ -11,6 +11,7 @@ export type SerializedSolanaKeyring = Readonly<{
   migration?:
     | 'legacy-devnet-v1'
     | Readonly<{ kind: 'legacy-devnet-v2'; sourceFingerprint: string }>;
+  custody?: 'native-devnet-v1';
 }>;
 
 /**
@@ -25,6 +26,7 @@ export class SolanaKeyring {
   private secrets: Uint8Array[] = [];
   private closed = false;
   private migration: SerializedSolanaKeyring['migration'];
+  private custody: SerializedSolanaKeyring['custody'];
 
   private assertOpen(): void {
     if (this.closed) throw new Error('Solana keyring is locked');
@@ -114,18 +116,32 @@ export class SolanaKeyring {
       version: 1,
       secretKeys: this.secrets.map(bytesToHex),
       ...(this.migration ? { migration: this.migration } : {}),
+      ...(this.custody ? { custody: this.custody } : {}),
     };
   }
 
   /** Background-only metadata, persisted inside the encrypted keyring data. */
   markMigratedFromLegacyDevnet(sourceFingerprint: string): void {
     this.assertOpen();
+    if (this.custody) throw new Error('Invalid Solana custody');
     if (!/^[0-9a-f]{64}$/.test(sourceFingerprint))
       throw new Error('Invalid source fingerprint');
     this.migration = Object.freeze({
       kind: 'legacy-devnet-v2',
       sourceFingerprint,
     });
+  }
+
+  /** Marker only; creating or activating native custody requires separate guards. */
+  markNativeDevnetCustody(): void {
+    this.assertOpen();
+    if (this.migration) throw new Error('Invalid Solana custody');
+    this.custody = 'native-devnet-v1';
+  }
+
+  isNativeDevnetCustody(): boolean {
+    this.assertOpen();
+    return this.custody === 'native-devnet-v1';
   }
 
   isMigratedFromLegacyDevnet(): boolean {
@@ -148,6 +164,8 @@ export class SolanaKeyring {
       data.version !== 1 ||
       !Array.isArray(data.secretKeys) ||
       data.secretKeys.length > 1000 ||
+      (data.custody !== undefined && data.custody !== 'native-devnet-v1') ||
+      (data.custody !== undefined && data.migration !== undefined) ||
       (data.migration !== undefined &&
         data.migration !== 'legacy-devnet-v1' &&
         (typeof data.migration !== 'object' ||
@@ -181,12 +199,14 @@ export class SolanaKeyring {
       typeof data.migration === 'object'
         ? Object.freeze({ ...data.migration })
         : data.migration;
+    this.custody = data.custody;
   }
 
   cleanUp(): void {
     this.secrets.forEach((secret) => secret.fill(0));
     this.secrets = [];
     this.migration = undefined;
+    this.custody = undefined;
     this.closed = true;
   }
 }
