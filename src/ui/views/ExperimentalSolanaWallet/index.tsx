@@ -6,6 +6,7 @@ import { SolanaAssets } from './SolanaAssets';
 import { SolanaSend } from './SolanaSend';
 import { SolanaReceive } from './SolanaReceive';
 import { SolanaActivity } from './SolanaActivity';
+import { SolanaOnboarding } from './SolanaOnboarding';
 import './style.less';
 
 type Status = {
@@ -26,15 +27,12 @@ const ExperimentalSolanaWallet = ({
   const wallet = useWallet();
   const history = useHistory();
   const [status, setStatus] = useState<Status | null>(null);
-  const [password, setPassword] = useState('');
-  const [mnemonic, setMnemonic] = useState('');
-  const [index, setIndex] = useState('0');
   const [busy, setBusy] = useState(false);
   const [sendPending, setSendPending] = useState(false);
   const [error, setError] = useState('');
   const [assetRefresh, setAssetRefresh] = useState(0);
   const [view, setView] = useState<
-    'overview' | 'send' | 'receive' | 'activity' | 'accounts' | 'restore'
+    'overview' | 'send' | 'receive' | 'activity' | 'accounts' | 'setup'
   >('overview');
   const refreshTimer = useRef<number>();
 
@@ -93,8 +91,6 @@ const ExperimentalSolanaWallet = ({
           : 'The operation failed. Check the test password, test recovery phrase and wallet lock state.'
       );
     } finally {
-      setPassword('');
-      setMnemonic('');
       setBusy(false);
     }
   };
@@ -135,39 +131,21 @@ const ExperimentalSolanaWallet = ({
         <p>Loading…</p>
       ) : (
         <>
-          {!status.unlocked ? (
-            <form
-              className="solana-wallet__card"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void perform(() =>
-                  status.exists
-                    ? wallet.experimentalSolanaUnlock(password)
-                    : wallet.experimentalSolanaCreate(password)
-                );
+          {!status.unlocked ||
+          view === 'setup' ||
+          (!status.selected && view === 'overview') ? (
+            <SolanaOnboarding
+              initialStatus={status}
+              onDone={async () => {
+                await refresh();
+                setView('overview');
               }}
-            >
-              <label
-                className="solana-wallet__field"
-                htmlFor="solana-vault-password"
-              >
-                Solana test vault password
-                <input
-                  id="solana-vault-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              </label>
-              <Button
-                type="primary"
-                htmlType="submit"
-                disabled={busy || !password}
-              >
-                {status.exists ? 'Unlock test vault' : 'Create test vault'}
-              </Button>
-            </form>
+              onCancel={
+                status.unlocked && status.selected
+                  ? () => setView('overview')
+                  : undefined
+              }
+            />
           ) : (
             <>
               {status.selected && view === 'overview' && (
@@ -181,26 +159,6 @@ const ExperimentalSolanaWallet = ({
                     onAccounts={() => setView('accounts')}
                   />
                 </>
-              )}
-              {!status.selected && view === 'overview' && (
-                <section className="solana-wallet__card">
-                  <h2>Add a Solana test account</h2>
-                  <p>
-                    Restore a disposable test account to start using Solana
-                    Devnet.
-                  </p>
-                  <Button type="primary" onClick={() => setView('restore')}>
-                    Restore test account
-                  </Button>
-                  <Button
-                    disabled={busy}
-                    onClick={() =>
-                      void perform(() => wallet.experimentalSolanaLock())
-                    }
-                  >
-                    Lock Solana vault
-                  </Button>
-                </section>
               )}
               {status.selected && view === 'send' && (
                 <SolanaSend
@@ -255,8 +213,8 @@ const ExperimentalSolanaWallet = ({
                       </li>
                     ))}
                   </ul>
-                  <Button type="primary" onClick={() => setView('restore')}>
-                    Restore test account
+                  <Button type="primary" onClick={() => setView('setup')}>
+                    Add test account
                   </Button>
                   <Button
                     disabled={busy}
@@ -270,84 +228,6 @@ const ExperimentalSolanaWallet = ({
                     Lock Solana vault
                   </Button>
                 </section>
-              )}
-              {view === 'restore' && (
-                <form
-                  className="solana-wallet__card"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const number = Number(index);
-                    if (
-                      !Number.isSafeInteger(number) ||
-                      number < 0 ||
-                      number >= 0x80000000
-                    ) {
-                      setError('Enter a valid account index.');
-                      return;
-                    }
-                    void perform(async () => {
-                      await wallet.experimentalSolanaImport(
-                        password,
-                        mnemonic,
-                        number
-                      );
-                      setView('overview');
-                    });
-                  }}
-                >
-                  <h2>Restore a test account</h2>
-                  <p>
-                    Path: m/44'/501'/account'/0'. Do not enter a real recovery
-                    phrase.
-                  </p>
-                  <label
-                    className="solana-wallet__field"
-                    htmlFor="solana-test-mnemonic"
-                  >
-                    Disposable test recovery phrase
-                    <textarea
-                      id="solana-test-mnemonic"
-                      autoComplete="off"
-                      spellCheck={false}
-                      value={mnemonic}
-                      onChange={(event) => setMnemonic(event.target.value)}
-                    />
-                  </label>
-                  <label
-                    className="solana-wallet__field"
-                    htmlFor="solana-test-index"
-                  >
-                    Account index
-                    <input
-                      id="solana-test-index"
-                      type="number"
-                      min="0"
-                      max="2147483647"
-                      value={index}
-                      onChange={(event) => setIndex(event.target.value)}
-                    />
-                  </label>
-                  <label
-                    className="solana-wallet__field"
-                    htmlFor="solana-test-password"
-                  >
-                    Solana test vault password
-                    <input
-                      id="solana-test-password"
-                      type="password"
-                      autoComplete="off"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                    />
-                  </label>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    disabled={busy || !password || !mnemonic}
-                  >
-                    Restore test account
-                  </Button>
-                </form>
               )}
             </>
           )}
