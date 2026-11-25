@@ -205,6 +205,8 @@ export class KeyringService extends EventEmitter {
   memStore: ObservableStore<MemStoreState>;
   keyrings: any[];
   private password: string | null = null;
+  private lockGeneration = 0;
+  private restoringKeyrings = false;
 
   constructor() {
     super();
@@ -502,6 +504,7 @@ export class KeyringService extends EventEmitter {
    * @returns {Promise<Object>} A Promise that resolves to the state.
    */
   async setLocked(): Promise<MemStoreState> {
+    this.lockGeneration += 1;
     // set locked
     // release all transport before lock wallet
     this.keyrings.forEach((keyring) => {
@@ -533,22 +536,30 @@ export class KeyringService extends EventEmitter {
    * @returns {Promise<Object>} A Promise that resolves to the state.
    */
   async submitPassword(password: string): Promise<MemStoreState> {
+    const generation = this.lockGeneration;
     await this.verifyPassword(password);
+    if (generation !== this.lockGeneration) throw new Error('Wallet is locked');
     this.password = password;
     try {
-      this.keyrings = await this.unlockKeyrings(password);
-    } catch {
-      //
-    } finally {
+      // A freshly booted wallet can legitimately have no persisted vault yet.
+      if (this.hasVault()) {
+        const restored = await this.unlockKeyrings(password);
+        if (generation !== this.lockGeneration)
+          throw new Error('Wallet is locked');
+        this.keyrings = restored;
+      }
       this.setUnlocked();
+      // force store unencrypted keyring data if not exist
+      if (!this.store.getState().unencryptedKeyringData) {
+        await this.persistAllKeyrings();
+      }
+      if (generation !== this.lockGeneration)
+        throw new Error('Wallet is locked');
+      return this.fullUpdate();
+    } catch (error) {
+      await this.setLocked();
+      throw error;
     }
-
-    // force store unencrypted keyring data if not exist
-    if (!this.store.getState().unencryptedKeyringData) {
-      await this.persistAllKeyrings();
-    }
-
-    return this.fullUpdate();
   }
 
   async tryUnlock() {
@@ -556,7 +567,11 @@ export class KeyringService extends EventEmitter {
       return;
     }
     try {
-      this.keyrings = await this.unlockKeyrings();
+      const generation = this.lockGeneration;
+      const restored = await this.unlockKeyrings();
+      if (generation !== this.lockGeneration)
+        throw new Error('Wallet is locked');
+      this.keyrings = restored;
       this.setUnlocked();
       this.fullUpdate();
     } catch (e) {
@@ -1193,23 +1208,42 @@ export class KeyringService extends EventEmitter {
    * @returns {Promise<Array<Keyring>>} The keyrings.
    */
   async unlockKeyrings(password?: string): Promise<any[]> {
-    const encryptedVault = this.store.getState().vault;
-    if (!encryptedVault) {
-      throw new Error(i18n.t('background.error.canNotUnlock'));
-    }
+    if (this.restoringKeyrings)
+      throw new Error('Wallet unlock already pending');
+    this.restoringKeyrings = true;
+    try {
+      const generation = this.lockGeneration;
+      const encryptedVault = this.store.getState().vault;
+      if (!encryptedVault) {
+        throw new Error(i18n.t('background.error.canNotUnlock'));
+      }
 
-    await this.clearKeyrings();
-    const vault = await passwordDecrypt({
-      password,
-      encryptedData: encryptedVault,
-      persisted: true,
-    });
-    // TODO: FIXME
-    await Promise.all(
-      Array.from(vault as any).map(this._restoreKeyring.bind(this))
-    );
-    await this._updateMemStoreKeyrings();
-    return this.keyrings;
+      await this.clearKeyrings();
+      const vault = await passwordDecrypt({
+        password,
+        encryptedData: encryptedVault,
+        persisted: true,
+      });
+      if (generation !== this.lockGeneration)
+        throw new Error('Wallet is locked');
+      const results = await Promise.allSettled(
+        Array.from(vault as any).map(this._restoreKeyring.bind(this))
+      );
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure || generation !== this.lockGeneration) {
+        await this.clearKeyrings();
+        if (failure?.status === 'rejected') throw failure.reason;
+        throw new Error('Wallet is locked');
+      }
+      await this._updateMemStoreKeyrings();
+      if (generation !== this.lockGeneration) {
+        await this.clearKeyrings();
+        throw new Error('Wallet is locked');
+      }
+      return this.keyrings;
+    } finally {
+      this.restoringKeyrings = false;
+    }
   }
 
   /**
