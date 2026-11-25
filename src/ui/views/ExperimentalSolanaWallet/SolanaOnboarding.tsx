@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { Button } from 'antd';
 import { useWallet } from 'ui/utils';
 
-type VaultStatus = { exists: boolean; unlocked: boolean };
+type VaultStatus = {
+  exists: boolean;
+  unlocked: boolean;
+  custody?: 'shared' | 'separate';
+};
 type Mode = 'choice' | 'unlock' | 'create' | 'restore';
 
 /** Devnet onboarding: the generated phrase is only shown in the extension UI. */
@@ -88,27 +92,36 @@ export const SolanaOnboarding = ({
   if (mode === 'choice')
     return (
       <section className="solana-wallet__card solana-onboarding">
-        <h2>Set up Solana</h2>
+        <h2>
+          {status.custody === 'shared'
+            ? 'Solana account locked'
+            : 'Set up Solana'}
+        </h2>
         <p>
-          Create a new disposable Devnet account or restore one with a test
-          recovery phrase.
+          {status.custody === 'shared'
+            ? 'Use your wallet password to unlock the Solana test account.'
+            : 'Create a new disposable Devnet account or restore one with a test recovery phrase.'}
         </p>
-        <Button
-          type="primary"
-          disabled={busy}
-          onClick={() => void createPhrase()}
-        >
-          Create a test account
-        </Button>
-        <Button
-          disabled={busy}
-          onClick={() => {
-            setPhrase('');
-            setMode('restore');
-          }}
-        >
-          Restore a test account
-        </Button>
+        {status.custody !== 'shared' && (
+          <>
+            <Button
+              type="primary"
+              disabled={busy}
+              onClick={() => void createPhrase()}
+            >
+              Create a test account
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                setPhrase('');
+                setMode('restore');
+              }}
+            >
+              Restore a test account
+            </Button>
+          </>
+        )}
         {status.exists && !status.unlocked && (
           <Button disabled={busy} onClick={() => setMode('unlock')}>
             Unlock existing Solana wallet
@@ -190,7 +203,9 @@ export const SolanaOnboarding = ({
         </>
       )}
       <label className="solana-wallet__field">
-        {status.exists
+        {status.custody === 'shared'
+          ? 'Wallet password'
+          : status.exists
           ? 'Solana test vault password'
           : 'Create a Solana test vault password'}
         <input
@@ -201,7 +216,9 @@ export const SolanaOnboarding = ({
         />
       </label>
       <p className="solana-wallet__notice">
-        This password is independent of the Ethereum wallet password.
+        {status.custody === 'shared'
+          ? 'Use the password for the main wallet.'
+          : 'This password is independent of the Ethereum wallet password.'}
       </p>
       {error && <p role="alert">{error}</p>}
       <Button

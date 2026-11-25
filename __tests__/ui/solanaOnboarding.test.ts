@@ -155,3 +155,33 @@ test('restores a test account after unlocking the existing vault', async () => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
   }
 });
+
+test('a manually locked shared account asks for the main wallet password', async () => {
+  const previous = (globalThis as any).IS_REACT_ACT_ENVIRONMENT;
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SolanaOnboarding, {
+          initialStatus: { exists: true, unlocked: false, custody: 'shared' },
+          onDone: jest.fn(),
+        })
+      )
+    );
+    expect(container.textContent).not.toContain('Create a test account');
+    expect(container.textContent).not.toContain('Restore a test account');
+    const unlock = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Unlock existing Solana wallet'
+    )!;
+    act(() => Simulate.click(unlock));
+    expect(container.textContent).toContain('Wallet password');
+    expect(container.textContent).not.toContain(
+      'independent of the Ethereum wallet password'
+    );
+  } finally {
+    act(() => root.unmount());
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
+  }
+});

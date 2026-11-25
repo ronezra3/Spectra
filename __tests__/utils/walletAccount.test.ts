@@ -64,6 +64,12 @@ test('preserves Solana case and never equates accounts across ecosystems', () =>
       walletAccountFromSolana(solanaAddress.toLowerCase())
     )
   ).toBe(false);
+  expect(
+    areWalletAccountsEqual(
+      solana,
+      walletAccountFromSolana(solanaAddress, 'shared-solana-keyring')
+    )
+  ).toBe(false);
   const evm = walletAccountFromEvm({
     address: solanaAddress,
     type: 'test',
