@@ -14,6 +14,7 @@ export const SolanaActivity = ({ address }: { address: string }) => {
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<SolanaActivityDetail | null>(null);
   const [detailError, setDetailError] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     setActivity(null);
@@ -101,7 +102,7 @@ export const SolanaActivity = ({ address }: { address: string }) => {
           )}
           {!failed && !activity && <p>Loading activity…</p>}
           {activity?.length === 0 && <p>No transactions yet.</p>}
-          {activity?.map((item) => (
+          {activity?.slice(0, showAll ? undefined : 5).map((item) => (
             <button
               type="button"
               className="solana-activity__row"
@@ -124,6 +125,13 @@ export const SolanaActivity = ({ address }: { address: string }) => {
               </strong>
             </button>
           ))}
+          {!!activity && activity.length > 5 && (
+            <Button type="link" onClick={() => setShowAll(!showAll)}>
+              {showAll
+                ? 'Show less'
+                : `Show all ${activity.length} transactions`}
+            </Button>
+          )}
           <p className="solana-assets__hint">
             Activity is provided by the public Devnet RPC.
           </p>

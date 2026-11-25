@@ -83,18 +83,23 @@ export const SolanaAssets = ({ address }: { address: string }) => {
           {balance === null ? '—' : `${formatLamports(balance)} SOL`}
         </strong>
       </div>
-      {tokens?.map((token) => (
-        <div className="solana-assets__row" key={token.mint}>
-          <span className="solana-assets__icon">T</span>
-          <span>
-            <b>Unknown token</b>
-            <small title={token.mint}>
-              {token.mint.slice(0, 8)}…{token.mint.slice(-6)}
-            </small>
-          </span>
-          <strong>{formatTokenAmount(token.amount, token.decimals)}</strong>
-        </div>
-      ))}
+      {!!tokens?.length && (
+        <details className="solana-assets__unknown">
+          <summary>Unverified tokens ({tokens.length})</summary>
+          {tokens.map((token) => (
+            <div className="solana-assets__row" key={token.mint}>
+              <span className="solana-assets__icon">T</span>
+              <span>
+                <b>Unknown token</b>
+                <small title={token.mint}>
+                  {token.mint.slice(0, 8)}…{token.mint.slice(-6)}
+                </small>
+              </span>
+              <strong>{formatTokenAmount(token.amount, token.decimals)}</strong>
+            </div>
+          ))}
+        </details>
+      )}
       {tokenError && (
         <p role="alert">Could not load token balances. Try refreshing.</p>
       )}

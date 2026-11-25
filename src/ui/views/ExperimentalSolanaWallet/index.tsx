@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWallet } from 'ui/utils';
 import { Button } from 'antd';
 import { useHistory } from 'react-router-dom';
@@ -25,6 +25,9 @@ const ExperimentalSolanaWallet = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [assetRefresh, setAssetRefresh] = useState(0);
+  const refreshTimer = useRef<number>();
+
+  useEffect(() => () => window.clearTimeout(refreshTimer.current), []);
 
   const refresh = useCallback(async () => {
     setStatus(await wallet.experimentalSolanaStatus());
@@ -144,7 +147,7 @@ const ExperimentalSolanaWallet = () => {
             <>
               {status.selected && (
                 <SolanaAssets
-                  key={`${status.selected.address}:${assetRefresh}`}
+                  key={`assets:${status.selected.address}:${assetRefresh}`}
                   address={status.selected.address}
                 />
               )}
@@ -152,12 +155,20 @@ const ExperimentalSolanaWallet = () => {
                 <SolanaSend
                   key={status.selected.address}
                   address={status.selected.address}
-                  onSent={() => setAssetRefresh((value) => value + 1)}
+                  onSent={() => {
+                    setAssetRefresh((value) => value + 1);
+                    window.clearTimeout(refreshTimer.current);
+                    // A successful RPC submission may need time to reach confirmed.
+                    refreshTimer.current = window.setTimeout(
+                      () => setAssetRefresh((value) => value + 1),
+                      4000
+                    );
+                  }}
                 />
               )}
               {status.selected && (
                 <SolanaActivity
-                  key={`${status.selected.address}:${assetRefresh}`}
+                  key={`activity:${status.selected.address}:${assetRefresh}`}
                   address={status.selected.address}
                 />
               )}
