@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Skeleton } from 'antd';
-import QRCode from 'qrcode.react';
 import { copyAddress } from '@/ui/utils/clipboard';
 import {
   formatLamports,
@@ -12,20 +11,28 @@ import {
   getDevnetTokens,
 } from '@/chains/solana/devnetTokens';
 
-export const SolanaAssets = ({ address }: { address: string }) => {
+export const SolanaAssets = ({
+  address,
+  onReceive,
+  onSend,
+}: {
+  address: string;
+  onReceive: () => void;
+  onSend: () => void;
+}) => {
   const [balance, setBalance] = useState<number | null>(null);
   const [tokens, setTokens] = useState<DevnetToken[] | null>(null);
   const [balanceError, setBalanceError] = useState(false);
   const [tokenError, setTokenError] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [receiving, setReceiving] = useState(false);
+  const [selectedMint, setSelectedMint] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     setBalance(null);
     setTokens(null);
+    setSelectedMint(null);
     setBalanceError(false);
     setTokenError(false);
-    setReceiving(false);
     getDevnetBalance(address, controller.signal).then(
       (value) => {
         if (!controller.signal.aborted) setBalance(value);
@@ -44,6 +51,30 @@ export const SolanaAssets = ({ address }: { address: string }) => {
     );
     return () => controller.abort();
   }, [address, refresh]);
+  const selectedToken = tokens?.find((token) => token.mint === selectedMint);
+  if (selectedToken) {
+    return (
+      <section className="solana-wallet__card solana-assets__detail">
+        <Button type="link" onClick={() => setSelectedMint(null)}>
+          ← Back to assets
+        </Button>
+        <h2>Unverified token</h2>
+        <strong>
+          {formatTokenAmount(selectedToken.amount, selectedToken.decimals)}
+        </strong>
+        <p>Solana Devnet</p>
+        <p>Mint address</p>
+        <code>{selectedToken.mint}</code>
+        <Button onClick={() => void copyAddress(selectedToken.mint)}>
+          Copy mint address
+        </Button>
+        <p className="solana-wallet__notice">
+          Token names, prices, and authenticity are not verified. Token
+          transfers are not available in this experimental wallet.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="solana-assets" aria-label="Solana assets">
       <div className="solana-assets__balance">
@@ -56,22 +87,13 @@ export const SolanaAssets = ({ address }: { address: string }) => {
           <Skeleton.Input active size="small" />
         )}
         <div className="solana-assets__actions">
-          <Button onClick={() => setReceiving(!receiving)}>Receive</Button>
+          <Button onClick={onReceive}>Receive</Button>
+          <Button onClick={onSend}>Send</Button>
           <Button onClick={() => setRefresh((value) => value + 1)}>
             Refresh
           </Button>
         </div>
       </div>
-      {receiving && (
-        <div className="solana-assets__receive">
-          <QRCode value={address} size={144} />
-          <p>Receive Solana Devnet assets only</p>
-          <code>{address}</code>
-          <Button onClick={() => void copyAddress(address)}>
-            Copy address
-          </Button>
-        </div>
-      )}
       <h2>Assets</h2>
       <div className="solana-assets__row">
         <span className="solana-assets__icon">S</span>
@@ -87,7 +109,12 @@ export const SolanaAssets = ({ address }: { address: string }) => {
         <details className="solana-assets__unknown">
           <summary>Unverified tokens ({tokens.length})</summary>
           {tokens.map((token) => (
-            <div className="solana-assets__row" key={token.mint}>
+            <button
+              type="button"
+              className="solana-assets__row solana-assets__token"
+              key={token.mint}
+              onClick={() => setSelectedMint(token.mint)}
+            >
               <span className="solana-assets__icon">T</span>
               <span>
                 <b>Unknown token</b>
@@ -95,8 +122,10 @@ export const SolanaAssets = ({ address }: { address: string }) => {
                   {token.mint.slice(0, 8)}…{token.mint.slice(-6)}
                 </small>
               </span>
-              <strong>{formatTokenAmount(token.amount, token.decimals)}</strong>
-            </div>
+              <strong>
+                {formatTokenAmount(token.amount, token.decimals)} →
+              </strong>
+            </button>
           ))}
         </details>
       )}

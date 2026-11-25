@@ -24,11 +24,25 @@ jest.mock('ui/utils', () => {
   return { useWallet: () => wallet };
 });
 jest.mock('@/ui/views/ExperimentalSolanaWallet/SolanaAssets', () => ({
-  SolanaAssets: () =>
+  SolanaAssets: ({ onSend, onReceive }: any) =>
     require('react').createElement(
       'div',
       { 'data-testid': 'assets' },
-      'Assets'
+      'Assets',
+      require('react').createElement('button', { onClick: onSend }, 'Send'),
+      require('react').createElement(
+        'button',
+        { onClick: onReceive },
+        'Receive'
+      )
+    ),
+}));
+jest.mock('@/ui/views/ExperimentalSolanaWallet/SolanaReceive', () => ({
+  SolanaReceive: () =>
+    require('react').createElement(
+      'div',
+      { 'data-testid': 'receive' },
+      'Receive view'
     ),
 }));
 jest.mock('@/ui/views/ExperimentalSolanaWallet/SolanaActivity', () => ({
@@ -57,13 +71,25 @@ test('refreshing after a send renders each asset and activity panel exactly once
     expect(container.querySelectorAll('[data-testid="assets"]')).toHaveLength(
       1
     );
-    const button = Array.from(container.querySelectorAll('button')).find(
-      (item) => item.textContent === 'Test send'
-    )!;
-    act(() => Simulate.click(button));
+    const click = (label: string) => {
+      const button = Array.from(container.querySelectorAll('button')).find(
+        (item) => item.textContent === label
+      )!;
+      expect(button).toBeDefined();
+      act(() => Simulate.click(button));
+    };
+    click('Receive');
+    expect(container.querySelectorAll('[data-testid="receive"]')).toHaveLength(
+      1
+    );
+    click('← Back to Solana');
+    click('Send');
+    click('Test send');
+    click('← Back to Solana');
     expect(container.querySelectorAll('[data-testid="assets"]')).toHaveLength(
       1
     );
+    click('Transactions');
     expect(container.querySelectorAll('[data-testid="activity"]')).toHaveLength(
       1
     );

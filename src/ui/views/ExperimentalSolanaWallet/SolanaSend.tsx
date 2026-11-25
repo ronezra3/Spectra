@@ -16,25 +16,27 @@ export function solToLamports(value: string): string | null {
 export const SolanaSend = ({
   address,
   onSent,
+  onPendingChange,
 }: {
   address: string;
   onSent: () => void;
+  onPendingChange: (pending: boolean) => void;
 }) => {
   const wallet = useWallet();
-  const [open, setOpen] = useState(false);
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [signature, setSignature] = useState('');
   const lamports = solToLamports(amount);
-  const valid =
-    parseSolanaReadOnlyAddress(recipient)?.address === recipient &&
-    lamports !== null;
+  const recipientValid =
+    parseSolanaReadOnlyAddress(recipient)?.address === recipient;
+  const valid = recipientValid && lamports !== null;
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!valid || !lamports || busy) return;
     setBusy(true);
+    onPendingChange(true);
     setError('');
     setSignature('');
     try {
@@ -53,43 +55,49 @@ export const SolanaSend = ({
       );
     } finally {
       setBusy(false);
+      onPendingChange(false);
     }
   };
   return (
     <section className="solana-wallet__card">
-      <Button type="primary" onClick={() => setOpen(!open)} disabled={busy}>
-        {open ? 'Close send' : 'Send SOL'}
-      </Button>
-      {open && (
-        <form onSubmit={send}>
-          <h2>Send SOL · Devnet</h2>
-          <label className="solana-wallet__field">
-            Recipient address
-            <input
-              value={recipient}
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(event) => setRecipient(event.target.value)}
-            />
-          </label>
-          <label className="solana-wallet__field">
-            Amount in SOL
-            <input
-              value={amount}
-              inputMode="decimal"
-              autoComplete="off"
-              onChange={(event) => setAmount(event.target.value)}
-            />
-          </label>
-          <p className="solana-wallet__notice">
-            Network fees are additional and are not estimated. You will review
-            the exact transfer before signing.
+      <form onSubmit={send}>
+        <h2>Send SOL · Devnet</h2>
+        <label className="solana-wallet__field">
+          Recipient address
+          <input
+            value={recipient}
+            aria-invalid={!!recipient && !recipientValid}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => setRecipient(event.target.value)}
+          />
+        </label>
+        {!!recipient && !recipientValid && (
+          <p role="alert">Enter a valid Solana address.</p>
+        )}
+        <label className="solana-wallet__field">
+          Amount in SOL
+          <input
+            value={amount}
+            aria-invalid={!!amount && lamports === null}
+            inputMode="decimal"
+            autoComplete="off"
+            onChange={(event) => setAmount(event.target.value)}
+          />
+        </label>
+        {!!amount && lamports === null && (
+          <p role="alert">
+            Enter a positive amount with up to 9 decimal places.
           </p>
-          <Button type="primary" htmlType="submit" disabled={!valid || busy}>
-            {busy ? 'Waiting for approval…' : 'Review transfer'}
-          </Button>
-        </form>
-      )}
+        )}
+        <p className="solana-wallet__notice">
+          Network fees are additional and are not estimated. You will review the
+          exact transfer before signing.
+        </p>
+        <Button type="primary" htmlType="submit" disabled={!valid || busy}>
+          {busy ? 'Waiting for approval…' : 'Review transfer'}
+        </Button>
+      </form>
       {signature && (
         <p>
           Submitted to Devnet.{' '}
