@@ -5,6 +5,8 @@ import SolanaConnect from '@/ui/views/Approval/components/SolanaConnect';
 import SolanaSignMessage from '@/ui/views/Approval/components/SolanaSignMessage';
 import SolanaSignTransfer from '@/ui/views/Approval/components/SolanaSignTransfer';
 
+jest.mock('@/ui/views/Approval/components/solanaApproval.less', () => ({}));
+
 const mockResolve = jest.fn();
 const mockReject = jest.fn();
 jest.mock('ui/utils', () => ({

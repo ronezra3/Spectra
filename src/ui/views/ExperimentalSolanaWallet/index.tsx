@@ -4,6 +4,7 @@ import { Button } from 'antd';
 import { useHistory } from 'react-router-dom';
 import { SolanaAssets } from './SolanaAssets';
 import { SolanaSend } from './SolanaSend';
+import { SolanaActivity } from './SolanaActivity';
 import './style.less';
 
 type Status = {
@@ -152,6 +153,12 @@ const ExperimentalSolanaWallet = () => {
                   key={status.selected.address}
                   address={status.selected.address}
                   onSent={() => setAssetRefresh((value) => value + 1)}
+                />
+              )}
+              {status.selected && (
+                <SolanaActivity
+                  key={`${status.selected.address}:${assetRefresh}`}
+                  address={status.selected.address}
                 />
               )}
               <section className="solana-wallet__card">
