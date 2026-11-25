@@ -14,6 +14,9 @@ jest.mock('antd', () => ({
 }));
 const mockWallet = {
   experimentalSolanaSelectAssociated: jest.fn(),
+  experimentalSolanaVerifiedLinks: jest.fn<Promise<string[]>, [string]>(
+    async () => []
+  ),
   experimentalSolanaStatus: jest.fn(async () => ({
     exists: true,
     unlocked: true,
@@ -23,11 +26,16 @@ const mockWallet = {
 };
 jest.mock('ui/utils', () => ({ useWallet: () => mockWallet }));
 jest.mock('@/ui/views/ExperimentalSolanaWallet/SolanaAssets', () => ({
-  SolanaAssets: ({ onSend, onReceive, onActivity }: any) =>
+  SolanaAssets: ({ onSend, onReceive, onActivity, onAccounts }: any) =>
     require('react').createElement(
       'div',
       { 'data-testid': 'assets' },
       'Assets',
+      require('react').createElement(
+        'button',
+        { onClick: onAccounts },
+        'Accounts'
+      ),
       require('react').createElement('button', { onClick: onSend }, 'Send'),
       require('react').createElement(
         'button',
@@ -199,6 +207,33 @@ test('uses the dashboard selector for navigation while retaining subview back na
     expect(container.querySelectorAll('[data-testid="assets"]')).toHaveLength(
       1
     );
+  } finally {
+    act(() => root.unmount());
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
+  }
+});
+
+test('labels only accounts verified for the selected EVM account', async () => {
+  const previous = (globalThis as any).IS_REACT_ACT_ENVIRONMENT;
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const evmAccount = {
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+    brandName: 'HD Key Tree',
+  };
+  mockWallet.experimentalSolanaSelectAssociated.mockResolvedValue('not-linked');
+  mockWallet.experimentalSolanaVerifiedLinks.mockResolvedValueOnce(['account']);
+  try {
+    await act(async () =>
+      root.render(createElement(SolanaWallet, { evmAccount }))
+    );
+    const button = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'Accounts'
+    )!;
+    act(() => Simulate.click(button));
+    expect(container.textContent).toContain('Linked to selected EVM account');
   } finally {
     act(() => root.unmount());
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;

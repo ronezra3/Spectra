@@ -574,6 +574,42 @@ class SolanaWalletService {
   }
 
   /** Select only a verified explicit link; an unlinked account stays unchanged. */
+  async getVerifiedLinksForCurrentEvm(
+    expectedAddress: string
+  ): Promise<string[]> {
+    this.requireWalletUnlocked();
+    const current = preferenceService.getCurrentAccount();
+    if (
+      !current ||
+      typeof expectedAddress !== 'string' ||
+      current.type !== KEYRING_TYPE.HdKeyring ||
+      current.address.toLowerCase() !== expectedAddress.toLowerCase()
+    )
+      throw new Error('Selected EVM account changed');
+    const identity = this.sharedIdentity();
+    const generation = solanaSigningSession.currentGeneration();
+    if (!identity || this.sharedManuallyLocked) return [];
+    if (!(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    const links = await keyringService.getAssociatedSolanaTestAccounts(
+      expectedAddress
+    );
+    if (!(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    const checked = preferenceService.getCurrentAccount();
+    if (
+      !checked ||
+      checked.type !== current.type ||
+      checked.brandName !== current.brandName ||
+      checked.address.toLowerCase() !== current.address.toLowerCase() ||
+      generation !== solanaSigningSession.currentGeneration() ||
+      this.sharedIdentity() !== identity ||
+      !this.isUnlocked()
+    )
+      throw new Error('Selected EVM account changed');
+    return links;
+  }
+
   async selectAssociatedAccountForEvm(
     expectedAddress: string
   ): Promise<'selected' | 'not-linked'> {

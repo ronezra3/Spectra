@@ -612,6 +612,8 @@ export class WalletController extends BaseController {
     getExperimentalSolanaWallet().selectAccount(address);
   experimentalSolanaSelectAssociated = (evmAddress: string) =>
     getExperimentalSolanaWallet().selectAssociatedAccountForEvm(evmAddress);
+  experimentalSolanaVerifiedLinks = (evmAddress: string) =>
+    getExperimentalSolanaWallet().getVerifiedLinksForCurrentEvm(evmAddress);
   experimentalSolanaSuggestedIndex = (evmAddress: string) =>
     getExperimentalSolanaWallet().getSuggestedIndexForCurrentEvm(evmAddress);
 
