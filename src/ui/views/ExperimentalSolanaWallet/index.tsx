@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useWallet } from 'ui/utils';
+import { Button } from 'antd';
+import { useHistory } from 'react-router-dom';
+import { SolanaAssets } from './SolanaAssets';
+import { SolanaSend } from './SolanaSend';
+import './style.less';
 
 type Status = {
   exists: boolean;
@@ -11,12 +16,14 @@ type Status = {
 /** Opt-in development view. No real credentials or funds should be used. */
 const ExperimentalSolanaWallet = () => {
   const wallet = useWallet();
+  const history = useHistory();
   const [status, setStatus] = useState<Status | null>(null);
   const [password, setPassword] = useState('');
   const [mnemonic, setMnemonic] = useState('');
   const [index, setIndex] = useState('0');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [assetRefresh, setAssetRefresh] = useState(0);
 
   const refresh = useCallback(async () => {
     setStatus(await wallet.experimentalSolanaStatus());
@@ -74,13 +81,23 @@ const ExperimentalSolanaWallet = () => {
   };
 
   return (
-    <main style={{ padding: 24, maxWidth: 600, margin: 'auto' }}>
-      <h1>Experimental Solana wallet</h1>
-      <p>
+    <main className="solana-wallet">
+      <button
+        className="solana-wallet__back"
+        type="button"
+        onClick={() => history.push('/dashboard')}
+      >
+        ← Back to wallet
+      </button>
+      <header className="solana-wallet__header">
+        <h1>Solana wallet</h1>
+        <span className="solana-wallet__badge">Devnet</span>
+      </header>
+      <p className="solana-wallet__notice">
         Devnet only. Use disposable test wallets, test passwords and test
         recovery phrases. Never use real keys or funds.
       </p>
-      <p>
+      <p className="solana-wallet__notice">
         The Solana vault is separate from Ethereum and locks when the wallet
         locks. Its password is independent.
       </p>
@@ -91,6 +108,7 @@ const ExperimentalSolanaWallet = () => {
         <>
           {!status.unlocked ? (
             <form
+              className="solana-wallet__card"
               onSubmit={(event) => {
                 event.preventDefault();
                 void perform(() =>
@@ -100,49 +118,72 @@ const ExperimentalSolanaWallet = () => {
                 );
               }}
             >
-              <label htmlFor="solana-vault-password">
+              <label
+                className="solana-wallet__field"
+                htmlFor="solana-vault-password"
+              >
                 Solana test vault password
+                <input
+                  id="solana-vault-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
               </label>
-              <input
-                id="solana-vault-password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-              <button type="submit" disabled={busy || !password}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                disabled={busy || !password}
+              >
                 {status.exists ? 'Unlock test vault' : 'Create test vault'}
-              </button>
+              </Button>
             </form>
           ) : (
             <>
-              <h2>Test accounts</h2>
-              {status.accounts.length === 0 && (
-                <p>No Solana test accounts yet.</p>
+              {status.selected && (
+                <SolanaAssets
+                  key={`${status.selected.address}:${assetRefresh}`}
+                  address={status.selected.address}
+                />
               )}
-              <ul>
-                {status.accounts.map((address) => (
-                  <li key={address} style={{ overflowWrap: 'anywhere' }}>
-                    {address}{' '}
-                    {status.selected?.address === address ? (
-                      '(selected)'
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void perform(() =>
-                            wallet.experimentalSolanaSelect(address)
-                          )
-                        }
-                      >
-                        Select
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              {status.selected && (
+                <SolanaSend
+                  key={status.selected.address}
+                  address={status.selected.address}
+                  onSent={() => setAssetRefresh((value) => value + 1)}
+                />
+              )}
+              <section className="solana-wallet__card">
+                <h2>Test accounts</h2>
+                {status.accounts.length === 0 && (
+                  <p>No Solana test accounts yet.</p>
+                )}
+                <ul>
+                  {status.accounts.map((address) => (
+                    <li key={address} className="solana-wallet__account">
+                      {address}{' '}
+                      {status.selected?.address === address ? (
+                        '(selected)'
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            void perform(() =>
+                              wallet.experimentalSolanaSelect(address)
+                            )
+                          }
+                        >
+                          Select
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
               <form
+                className="solana-wallet__card"
                 onSubmit={(event) => {
                   event.preventDefault();
                   const number = Number(index);
@@ -164,41 +205,56 @@ const ExperimentalSolanaWallet = () => {
                   Path: m/44'/501'/account'/0'. Do not enter a real recovery
                   phrase.
                 </p>
-                <label htmlFor="solana-test-mnemonic">
+                <label
+                  className="solana-wallet__field"
+                  htmlFor="solana-test-mnemonic"
+                >
                   Disposable test recovery phrase
+                  <textarea
+                    id="solana-test-mnemonic"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={mnemonic}
+                    onChange={(event) => setMnemonic(event.target.value)}
+                  />
                 </label>
-                <textarea
-                  id="solana-test-mnemonic"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={mnemonic}
-                  onChange={(event) => setMnemonic(event.target.value)}
-                />
-                <label htmlFor="solana-test-index">Account index</label>
-                <input
-                  id="solana-test-index"
-                  type="number"
-                  min="0"
-                  max="2147483647"
-                  value={index}
-                  onChange={(event) => setIndex(event.target.value)}
-                />
-                <label htmlFor="solana-test-password">
+                <label
+                  className="solana-wallet__field"
+                  htmlFor="solana-test-index"
+                >
+                  Account index
+                  <input
+                    id="solana-test-index"
+                    type="number"
+                    min="0"
+                    max="2147483647"
+                    value={index}
+                    onChange={(event) => setIndex(event.target.value)}
+                  />
+                </label>
+                <label
+                  className="solana-wallet__field"
+                  htmlFor="solana-test-password"
+                >
                   Solana test vault password
+                  <input
+                    id="solana-test-password"
+                    type="password"
+                    autoComplete="off"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
                 </label>
-                <input
-                  id="solana-test-password"
-                  type="password"
-                  autoComplete="off"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-                <button type="submit" disabled={busy || !password || !mnemonic}>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  disabled={busy || !password || !mnemonic}
+                >
                   Restore test account
-                </button>
+                </Button>
               </form>
-              <button
-                type="button"
+              <Button
+                htmlType="button"
                 disabled={busy}
                 onClick={() =>
                   void perform(async () => {
@@ -207,7 +263,7 @@ const ExperimentalSolanaWallet = () => {
                 }
               >
                 Lock Solana vault
-              </button>
+              </Button>
             </>
           )}
         </>

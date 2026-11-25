@@ -12,6 +12,7 @@ export type SolanaSignTransferParams = {
   lamports: string;
   recentBlockhash: string;
   transactionHex: string;
+  source?: 'dapp' | 'wallet';
 };
 
 const SolanaSignTransfer = ({
@@ -66,7 +67,10 @@ const SolanaSignTransfer = ({
       {valid ? (
         <>
           <p>
-            Site: <strong>{params?.origin}</strong>
+            {params?.source === 'wallet' ? 'Requested by: ' : 'Site: '}
+            <strong>
+              {params?.source === 'wallet' ? 'Your wallet' : params?.origin}
+            </strong>
           </p>
           <p>Network: Solana Devnet</p>
           <p style={{ overflowWrap: 'anywhere' }}>From: {params?.from}</p>

@@ -518,6 +518,23 @@ export class WalletController extends BaseController {
   experimentalSolanaUnlock = (password: string) =>
     getExperimentalSolanaWallet().unlock(password);
   experimentalSolanaLock = () => getExperimentalSolanaWallet().lock();
+  experimentalSolanaSend = (
+    account: string,
+    recipient: string,
+    lamports: string
+  ) => {
+    getExperimentalSolanaWallet();
+    // Keep the transaction SDK and native send flow out of production builds.
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.OMNI_SOLANA_READONLY === '1'
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const module = require('../service/solanaNativeSend') as typeof import('../service/solanaNativeSend');
+      return module.sendSolanaFromWallet(account, recipient, lamports);
+    }
+    throw new Error('Experimental Solana wallet is unavailable');
+  };
   experimentalSolanaImport = (
     password: string,
     mnemonic: string,
