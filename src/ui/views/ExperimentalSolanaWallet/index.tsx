@@ -190,7 +190,20 @@ const ExperimentalSolanaWallet = ({
             <SolanaOnboarding
               initialStatus={status}
               onPendingChange={setMigrationPending}
-              onDone={async () => {
+              onDone={async (mode) => {
+                if (
+                  mode === 'linked' &&
+                  evmAccount?.address &&
+                  evmAccount.type === KEYRING_TYPE.HdKeyring
+                ) {
+                  setAssociation(
+                    await wallet.experimentalSolanaSelectAssociated(
+                      evmAccount.address
+                    )
+                  );
+                } else if (mode === 'create' || mode === 'restore') {
+                  setAssociation('manual');
+                }
                 await refresh();
                 setView('overview');
               }}

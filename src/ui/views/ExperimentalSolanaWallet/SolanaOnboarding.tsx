@@ -18,7 +18,7 @@ export const SolanaOnboarding = ({
   onPendingChange,
 }: {
   initialStatus: VaultStatus;
-  onDone: () => Promise<void>;
+  onDone: (mode: Mode) => Promise<void>;
   onCancel?: () => void;
   onPendingChange?: (pending: boolean) => void;
 }) => {
@@ -90,12 +90,22 @@ export const SolanaOnboarding = ({
         current.custody !== status.custody
       )
         throw new Error('Solana custody changed');
-      if (!current.exists && mode === 'linked') {
-        await wallet.experimentalSolanaCreateLinked(
-          password,
-          accountIndex,
-          evmSource
-        );
+      if (mode === 'linked') {
+        if (!current.exists) {
+          await wallet.experimentalSolanaCreateLinked(
+            password,
+            accountIndex,
+            evmSource
+          );
+        } else if (current.custody === 'shared' && current.unlocked) {
+          await wallet.experimentalSolanaAddLinked(
+            password,
+            accountIndex,
+            evmSource
+          );
+        } else {
+          throw new Error('Shared Solana custody is unavailable');
+        }
       } else if (!current.exists && mode !== 'unlock') {
         await wallet.experimentalSolanaCreateNative(
           password,
@@ -117,7 +127,7 @@ export const SolanaOnboarding = ({
         }
       }
       setPhrase('');
-      await onDone();
+      await onDone(mode);
     } catch {
       if (
         (status.custody === 'shared' || !status.exists) &&
@@ -159,7 +169,8 @@ export const SolanaOnboarding = ({
         </p>
         {(status.custody !== 'shared' || status.unlocked) && (
           <>
-            {!status.exists && (
+            {(!status.exists ||
+              (status.custody === 'shared' && status.unlocked)) && (
               <Button
                 type="primary"
                 disabled={busy}
