@@ -73,6 +73,9 @@ test('derives and signs with a linked test account, then restores the associatio
     type: 'HD Key Tree',
     brandName: 'HD Key Tree',
   };
+  expect(
+    await solanaWalletService.getSuggestedIndexForCurrentEvm(address)
+  ).toBe(0);
   const solanaAddress = await solanaWalletService.createNativeTestFromCurrentEvm(
     'test-password',
     0,

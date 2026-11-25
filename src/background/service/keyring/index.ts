@@ -1425,6 +1425,49 @@ export class KeyringService extends EventEmitter {
     }
   }
 
+  /** Suggest the selected HD account's index; never infer from a different keyring. */
+  async getSolanaTestIndexForEvmAccount(
+    evmAddress: string
+  ): Promise<number | null> {
+    if (!this.isUnlocked() || !/^0x[0-9a-f]{40}$/i.test(evmAddress))
+      return null;
+    const generation = this.lockGeneration;
+    const sources = this.getKeyringsByType(
+      KEYRING_TYPE.HdKeyring
+    ) as HdKeyring[];
+    const accounts = await Promise.all(
+      sources.map((source) => source.getAccounts())
+    );
+    const matching = sources.filter((_source, position) =>
+      accounts[position].some(
+        (address) => address.toLowerCase() === evmAddress.toLowerCase()
+      )
+    );
+    if (
+      !this.isUnlocked() ||
+      generation !== this.lockGeneration ||
+      matching.length !== 1
+    )
+      return null;
+    const source = matching[0];
+    const index = source.getInfoByAddress(evmAddress.toLowerCase())?.index;
+    if (!Number.isSafeInteger(index) || index! < 0 || index! >= 0x80000000)
+      return null;
+    try {
+      await this.previewSolanaTestAddressFromEvmSeed(evmAddress, index!);
+      const currentIndex = source.getInfoByAddress(evmAddress.toLowerCase())
+        ?.index;
+      return this.isUnlocked() &&
+        generation === this.lockGeneration &&
+        this.keyrings.includes(source) &&
+        currentIndex === index
+        ? index!
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Background-only; caller authenticates the user and guards legacy storage. */
   async createNativeSolanaTestAccountFromEvmSeed(
     evmAddress: string,

@@ -36,6 +36,33 @@ class SolanaWalletService {
     if (!keyringService.isUnlocked()) throw new Error('Wallet is locked');
   }
 
+  async getSuggestedIndexForCurrentEvm(
+    expectedAddress: string
+  ): Promise<number | null> {
+    this.requireWalletUnlocked();
+    const current = preferenceService.getCurrentAccount();
+    if (
+      !current ||
+      current.type !== KEYRING_TYPE.HdKeyring ||
+      typeof expectedAddress !== 'string' ||
+      current.address.toLowerCase() !== expectedAddress.toLowerCase()
+    )
+      return null;
+    const generation = solanaSigningSession.currentGeneration();
+    const index = await keyringService.getSolanaTestIndexForEvmAccount(
+      expectedAddress
+    );
+    const latest = preferenceService.getCurrentAccount();
+    return keyringService.isUnlocked() &&
+      generation === solanaSigningSession.currentGeneration() &&
+      !!latest &&
+      latest.type === current.type &&
+      latest.brandName === current.brandName &&
+      latest.address.toLowerCase() === current.address.toLowerCase()
+      ? index
+      : null;
+  }
+
   private invalidateConnections(): void {
     solanaConnectionSession.invalidate();
     void rejectSolanaApproval().catch(() => undefined);

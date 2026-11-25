@@ -42,7 +42,18 @@ export const SolanaOnboarding = ({
       const account = await wallet.getCurrentAccount();
       if (account?.type !== KEYRING_TYPE.HdKeyring || !account.address)
         throw new Error('No supported seed account');
+      const suggested = await wallet.experimentalSolanaSuggestedIndex(
+        account.address
+      );
+      if (
+        typeof suggested !== 'number' ||
+        !Number.isSafeInteger(suggested) ||
+        suggested < 0 ||
+        suggested >= 0x80000000
+      )
+        throw new Error('No supported account index');
       setEvmSource(account.address);
+      setIndex(String(suggested));
       setMode('linked');
     } catch {
       setError('Select a seed-phrase EVM test account to use this option.');

@@ -45,6 +45,11 @@ test('previews and explicitly creates a linked Solana account from an EVM HD see
   await target.boot('test-password');
   const hd = await target.addNewKeyring('HD Key Tree', { mnemonic: phrase });
   const [evmAddress] = await hd.addAccounts(1);
+  const [secondEvmAddress] = await hd.addAccounts(1);
+  expect(await target.getSolanaTestIndexForEvmAccount(evmAddress)).toBe(0);
+  expect(await target.getSolanaTestIndexForEvmAccount(secondEvmAddress)).toBe(
+    1
+  );
   const before = target.store.getState().vault;
   expect(await target.previewSolanaTestAddressFromEvmSeed(evmAddress, 0)).toBe(
     'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk'

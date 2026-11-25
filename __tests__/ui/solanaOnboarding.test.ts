@@ -15,6 +15,7 @@ const mockWallet = {
   experimentalSolanaCreateLinked: jest.fn(),
   experimentalSolanaAddLinked: jest.fn(),
   getCurrentAccount: jest.fn(),
+  experimentalSolanaSuggestedIndex: jest.fn(),
 };
 jest.mock('ui/utils', () => ({ useWallet: () => mockWallet }));
 jest.mock('antd', () => ({
@@ -45,6 +46,7 @@ beforeEach(() => {
     address: '0x0000000000000000000000000000000000000001',
     type: 'HD Key Tree',
   });
+  mockWallet.experimentalSolanaSuggestedIndex.mockResolvedValue(0);
 });
 
 test('adds a linked account to existing shared test custody', async () => {
@@ -93,6 +95,7 @@ test('offers an explicitly identified EVM seed for the first Solana test account
   const container = document.createElement('div');
   const root = createRoot(container);
   const done = jest.fn().mockResolvedValue(undefined);
+  mockWallet.experimentalSolanaSuggestedIndex.mockResolvedValue(2);
   try {
     await act(async () =>
       root.render(
@@ -118,7 +121,7 @@ test('offers an explicitly identified EVM seed for the first Solana test account
     await act(async () => Simulate.submit(container.querySelector('form')!));
     expect(mockWallet.experimentalSolanaCreateLinked).toHaveBeenCalledWith(
       'test-password',
-      0,
+      2,
       '0x0000000000000000000000000000000000000001'
     );
     expect(mockWallet.experimentalSolanaCreateNative).not.toHaveBeenCalled();
