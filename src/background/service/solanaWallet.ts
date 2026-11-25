@@ -1,4 +1,6 @@
 import keyringService from './keyring';
+import preferenceService from './preference';
+import { KEYRING_TYPE } from '@/constant';
 import { SOLANA_DEVNET_NETWORK } from '@/chains/network';
 import { assessSolanaMigration } from '@/chains/solana/migrationPreflight';
 import { SOLANA_KEYRING_TYPE } from './keyring/solanaKeyringType';
@@ -282,6 +284,68 @@ class SolanaWalletService {
       };
       const address = await keyringService.createNativeSolanaTestAccount(
         mnemonic,
+        index,
+        assertCurrent
+      );
+      assertCurrent();
+      if (!(await this.verifySharedCustody()))
+        throw new Error('Solana migration requires reconciliation');
+      assertCurrent();
+      this.selected = address;
+      this.invalidateConnections();
+      return address;
+    } finally {
+      this.custodyCreationPending = false;
+    }
+  }
+
+  /** Background-only: derive from the currently selected EVM HD account. */
+  async createNativeTestFromCurrentEvm(
+    password: string,
+    index: number
+  ): Promise<string> {
+    this.requireWalletUnlocked();
+    if (this.custodyCreationPending) throw new Error('Solana setup is pending');
+    const source = preferenceService.getCurrentAccount();
+    if (!source || source.type !== KEYRING_TYPE.HdKeyring)
+      throw new Error('Selected EVM account has no supported seed');
+    this.custodyCreationPending = true;
+    try {
+      const authGeneration = solanaSigningSession.currentGeneration();
+      if ((await this.storage.read()) !== null || this.sharedIdentity())
+        throw new Error('Solana custody already exists');
+      await keyringService.verifyPassword(password);
+      const sourceAfterAuth = await this.storage.read();
+      const selected = preferenceService.getCurrentAccount();
+      if (
+        !keyringService.isUnlocked() ||
+        authGeneration !== solanaSigningSession.currentGeneration() ||
+        !selected ||
+        selected.type !== source.type ||
+        selected.brandName !== source.brandName ||
+        selected.address.toLowerCase() !== source.address.toLowerCase() ||
+        sourceAfterAuth !== null ||
+        this.sharedIdentity()
+      )
+        throw new Error('Solana setup expired');
+      this.invalidateConnections();
+      this.sharedManuallyLocked = false;
+      const generation = solanaSigningSession.currentGeneration();
+      const assertCurrent = () => {
+        const current = preferenceService.getCurrentAccount();
+        if (
+          !this.custodyCreationPending ||
+          !keyringService.isUnlocked() ||
+          generation !== solanaSigningSession.currentGeneration() ||
+          !current ||
+          current.type !== source.type ||
+          current.brandName !== source.brandName ||
+          current.address.toLowerCase() !== source.address.toLowerCase()
+        )
+          throw new Error('Solana setup expired');
+      };
+      const address = await keyringService.createNativeSolanaTestAccountFromEvmSeed(
+        source.address,
         index,
         assertCurrent
       );
