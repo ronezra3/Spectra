@@ -11,6 +11,7 @@ const mockWallet = {
   experimentalSolanaUnlock: jest.fn(),
   experimentalSolanaImport: jest.fn(),
   experimentalSolanaAddShared: jest.fn(),
+  experimentalSolanaCreateNative: jest.fn(),
 };
 jest.mock('ui/utils', () => ({ useWallet: () => mockWallet }));
 jest.mock('antd', () => ({
@@ -34,6 +35,7 @@ beforeEach(() => {
   mockWallet.experimentalSolanaCreate.mockResolvedValue(undefined);
   mockWallet.experimentalSolanaImport.mockResolvedValue('address');
   mockWallet.experimentalSolanaAddShared.mockResolvedValue('shared-address');
+  mockWallet.experimentalSolanaCreateNative.mockResolvedValue('native-address');
 });
 
 test('adds a restored test account to the shared vault with the main password', async () => {
@@ -118,14 +120,13 @@ test('starts with a choice, then creates and imports only after backup acknowled
     const confirm = container.querySelector('input[type="checkbox"]')!;
     act(() => Simulate.change(confirm, { target: { checked: true } } as any));
     await act(async () => Simulate.submit(container.querySelector('form')!));
-    expect(mockWallet.experimentalSolanaCreate).toHaveBeenCalledWith(
-      'test-password'
-    );
-    expect(mockWallet.experimentalSolanaImport).toHaveBeenCalledWith(
+    expect(mockWallet.experimentalSolanaCreateNative).toHaveBeenCalledWith(
       'test-password',
       'disposable test recovery phrase',
       0
     );
+    expect(mockWallet.experimentalSolanaCreate).not.toHaveBeenCalled();
+    expect(mockWallet.experimentalSolanaImport).not.toHaveBeenCalled();
     expect(done).toHaveBeenCalledTimes(1);
   } finally {
     act(() => root.unmount());

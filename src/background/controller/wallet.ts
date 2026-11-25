@@ -577,6 +577,16 @@ export class WalletController extends BaseController {
       mnemonic,
       index
     );
+  experimentalSolanaCreateNative = (
+    password: string,
+    mnemonic: string,
+    index: number
+  ) =>
+    getExperimentalSolanaWallet().createNativeTestMnemonic(
+      password,
+      mnemonic,
+      index
+    );
   experimentalSolanaSelect = (address: string) =>
     getExperimentalSolanaWallet().selectAccount(address);
 

@@ -25,6 +25,7 @@ const SECRET_METHODS = new Set([
   'experimentalSolanaUnlock',
   'experimentalSolanaImport',
   'experimentalSolanaAddShared',
+  'experimentalSolanaCreateNative',
   'experimentalSolanaMigrate',
 ]);
 // requestKeyring calls straight into a keyring; the software ones hold the
