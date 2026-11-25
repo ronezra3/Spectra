@@ -12,6 +12,8 @@ const mockWallet = {
   experimentalSolanaImport: jest.fn(),
   experimentalSolanaAddShared: jest.fn(),
   experimentalSolanaCreateNative: jest.fn(),
+  experimentalSolanaCreateLinked: jest.fn(),
+  getCurrentAccount: jest.fn(),
 };
 jest.mock('ui/utils', () => ({ useWallet: () => mockWallet }));
 jest.mock('antd', () => ({
@@ -36,6 +38,53 @@ beforeEach(() => {
   mockWallet.experimentalSolanaImport.mockResolvedValue('address');
   mockWallet.experimentalSolanaAddShared.mockResolvedValue('shared-address');
   mockWallet.experimentalSolanaCreateNative.mockResolvedValue('native-address');
+  mockWallet.experimentalSolanaCreateLinked.mockResolvedValue('linked-address');
+  mockWallet.getCurrentAccount.mockResolvedValue({
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+  });
+});
+
+test('offers an explicitly identified EVM seed for the first Solana test account', async () => {
+  const previous = (globalThis as any).IS_REACT_ACT_ENVIRONMENT;
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const done = jest.fn().mockResolvedValue(undefined);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SolanaOnboarding, {
+          initialStatus: { exists: false, unlocked: false },
+          onDone: done,
+        })
+      )
+    );
+    const choose = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Use current wallet account'
+    )!;
+    await act(async () => Simulate.click(choose));
+    expect(container.textContent).toContain(
+      '0x0000000000000000000000000000000000000001'
+    );
+    expect(container.querySelector('textarea')).toBeNull();
+    act(() =>
+      Simulate.change(container.querySelector('input[type="password"]')!, {
+        target: { value: 'test-password' },
+      } as any)
+    );
+    await act(async () => Simulate.submit(container.querySelector('form')!));
+    expect(mockWallet.experimentalSolanaCreateLinked).toHaveBeenCalledWith(
+      'test-password',
+      0,
+      '0x0000000000000000000000000000000000000001'
+    );
+    expect(mockWallet.experimentalSolanaCreateNative).not.toHaveBeenCalled();
+    expect(done).toHaveBeenCalledTimes(1);
+  } finally {
+    act(() => root.unmount());
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = previous;
+  }
 });
 
 test('adds a restored test account to the shared vault with the main password', async () => {

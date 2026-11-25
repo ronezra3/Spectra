@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Button } from 'antd';
 import { useWallet } from 'ui/utils';
+import { KEYRING_TYPE } from '@/constant';
 
 type VaultStatus = {
   exists: boolean;
   unlocked: boolean;
   custody?: 'shared' | 'separate';
 };
-type Mode = 'choice' | 'unlock' | 'create' | 'restore';
+type Mode = 'choice' | 'unlock' | 'create' | 'restore' | 'linked';
 
 /** Devnet onboarding: the generated phrase is only shown in the extension UI. */
 export const SolanaOnboarding = ({
@@ -31,6 +32,24 @@ export const SolanaOnboarding = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [uncertain, setUncertain] = useState(false);
+  const [evmSource, setEvmSource] = useState('');
+
+  const selectCurrentWallet = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const account = await wallet.getCurrentAccount();
+      if (account?.type !== KEYRING_TYPE.HdKeyring || !account.address)
+        throw new Error('No supported seed account');
+      setEvmSource(account.address);
+      setMode('linked');
+    } catch {
+      setError('Select a seed-phrase EVM test account to use this option.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const createPhrase = async () => {
     if (busy) return;
@@ -53,7 +72,7 @@ export const SolanaOnboarding = ({
     const accountIndex = Number(index);
     if (
       mode !== 'unlock' &&
-      (!phrase.trim() ||
+      ((mode !== 'linked' && !phrase.trim()) ||
         !Number.isSafeInteger(accountIndex) ||
         accountIndex < 0 ||
         accountIndex >= 0x80000000)
@@ -71,7 +90,13 @@ export const SolanaOnboarding = ({
         current.custody !== status.custody
       )
         throw new Error('Solana custody changed');
-      if (!current.exists && mode !== 'unlock') {
+      if (!current.exists && mode === 'linked') {
+        await wallet.experimentalSolanaCreateLinked(
+          password,
+          accountIndex,
+          evmSource
+        );
+      } else if (!current.exists && mode !== 'unlock') {
         await wallet.experimentalSolanaCreateNative(
           password,
           phrase.trim(),
@@ -134,6 +159,15 @@ export const SolanaOnboarding = ({
         </p>
         {(status.custody !== 'shared' || status.unlocked) && (
           <>
+            {!status.exists && (
+              <Button
+                type="primary"
+                disabled={busy}
+                onClick={() => void selectCurrentWallet()}
+              >
+                Use current wallet account
+              </Button>
+            )}
             <Button
               type="primary"
               disabled={busy}
@@ -175,6 +209,7 @@ export const SolanaOnboarding = ({
         onClick={() => {
           setPhrase('');
           setPassword('');
+          setEvmSource('');
           setError('');
           setMode('choice');
         }}
@@ -182,7 +217,9 @@ export const SolanaOnboarding = ({
         ← Back
       </button>
       <h2>
-        {mode === 'create'
+        {mode === 'linked'
+          ? 'Use current wallet account'
+          : mode === 'create'
           ? 'Create a test account'
           : mode === 'restore'
           ? 'Restore a test account'
@@ -232,6 +269,27 @@ export const SolanaOnboarding = ({
           </label>
         </>
       )}
+      {mode === 'linked' && (
+        <>
+          <p>
+            Derive a Solana Devnet test account from the selected wallet
+            recovery phrase. No recovery phrase will be displayed.
+          </p>
+          <p>
+            Selected EVM account: <code>{evmSource}</code>
+          </p>
+          <label className="solana-wallet__field">
+            Solana account index
+            <input
+              type="number"
+              min="0"
+              max="2147483647"
+              value={index}
+              onChange={(event) => setIndex(event.target.value)}
+            />
+          </label>
+        </>
+      )}
       <label className="solana-wallet__field">
         {status.custody === 'shared' || !status.exists
           ? 'Wallet password'
@@ -262,6 +320,8 @@ export const SolanaOnboarding = ({
       >
         {mode === 'unlock'
           ? 'Unlock'
+          : mode === 'linked'
+          ? 'Add Solana account'
           : mode === 'create'
           ? 'Create account'
           : 'Restore account'}

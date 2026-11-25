@@ -163,6 +163,7 @@ describe('experimental Solana credential redaction', () => {
     'experimentalSolanaImport',
     'experimentalSolanaAddShared',
     'experimentalSolanaCreateNative',
+    'experimentalSolanaCreateLinked',
     'experimentalSolanaMigrate',
   ])('withholds secret-bearing errors for %s', (method) => {
     const sentry = require('@sentry/browser');

@@ -588,6 +588,16 @@ export class WalletController extends BaseController {
       mnemonic,
       index
     );
+  experimentalSolanaCreateLinked = (
+    password: string,
+    index: number,
+    expectedAddress: string
+  ) =>
+    getExperimentalSolanaWallet().createNativeTestFromCurrentEvm(
+      password,
+      index,
+      expectedAddress
+    );
   experimentalSolanaSelect = (address: string) =>
     getExperimentalSolanaWallet().selectAccount(address);
 
