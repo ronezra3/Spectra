@@ -209,6 +209,7 @@ export class KeyringService extends EventEmitter {
   private lockGeneration = 0;
   private restoringKeyrings = false;
   private persistenceQueue: Promise<void> = Promise.resolve();
+  private persistenceFlusher: (() => Promise<void>) | null = null;
 
   constructor() {
     super();
@@ -225,6 +226,11 @@ export class KeyringService extends EventEmitter {
 
   loadStore(initState) {
     this.store = new ObservableStore(initState);
+  }
+
+  /** Wired by the background storage owner, not callable from a page provider. */
+  setPersistenceFlusher(flush: () => Promise<void>): void {
+    this.persistenceFlusher = flush;
   }
 
   async boot(password: string) {
@@ -1230,6 +1236,9 @@ export class KeyringService extends EventEmitter {
     if (!this.isUnlocked()) throw new Error('Wallet is locked');
     const generation = this.lockGeneration;
     return this.enqueuePersistence(async () => {
+      const flush = this.persistenceFlusher;
+      if (!flush)
+        throw new Error('Keyring storage acknowledgement unavailable');
       if (!this.isUnlocked() || generation !== this.lockGeneration)
         throw new Error('Wallet is locked');
       assertSourceCurrent();
@@ -1253,6 +1262,13 @@ export class KeyringService extends EventEmitter {
             committed = true;
           }
         );
+        // The ObservableStore update is synchronous; storage is asynchronous.
+        // If acknowledgement fails, retain the candidate and source and report
+        // an uncertain outcome so callers do not treat it as a safe migration.
+        await flush();
+        if (!this.isUnlocked() || generation !== this.lockGeneration)
+          throw new Error('Wallet is locked');
+        assertSourceCurrent();
         return addresses;
       } finally {
         if (!committed) {

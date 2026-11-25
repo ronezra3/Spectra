@@ -144,6 +144,7 @@ async function restoreAppState() {
   const keyringWriter = new OrderedStateWriter((value) =>
     storage.set('keyringState', value)
   );
+  keyringService.setPersistenceFlusher(() => keyringWriter.flush());
   keyringService.store.subscribe((value) => {
     void keyringWriter.enqueue(value).catch(() => {
       // Do not include encrypted or unencrypted keyring state in logs.
