@@ -44,9 +44,27 @@ const ExperimentalSolanaWallet = () => {
     try {
       await operation();
       await refresh();
-    } catch {
+    } catch (cause) {
+      // Only display explicitly recognized messages: unexpected errors can
+      // contain the recovery phrase or other sensitive input.
+      const message = (cause as { message?: unknown } | null)?.message;
+      const known: Record<string, string> = {
+        'Solana vault decryption failed':
+          'Could not decrypt the Solana vault. Check the test vault password; the vault data may also be damaged.',
+        'Invalid mnemonic': 'The test recovery phrase is invalid.',
+        'Wallet is locked': 'Unlock the Rabby wallet before using Solana.',
+        'Solana vault is locked': 'Unlock the Solana test vault first.',
+        'Solana account already exists': 'This test account already exists.',
+        'Could not read Solana vault storage':
+          'Could not read Solana vault storage.',
+        'Could not write Solana vault storage':
+          'Could not write Solana vault storage.',
+      };
       setError(
-        'The operation failed. Check the test password, test recovery phrase and wallet lock state.'
+        typeof message === 'string' &&
+          Object.prototype.hasOwnProperty.call(known, message)
+          ? known[message]
+          : 'The operation failed. Check the test password, test recovery phrase and wallet lock state.'
       );
     } finally {
       setPassword('');

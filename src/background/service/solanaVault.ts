@@ -83,7 +83,12 @@ export class SolanaVault {
       const ciphertext = await this.storage.read();
       this.check(generation);
       if (!ciphertext) throw new Error('Solana vault does not exist');
-      const serialized = await decrypt(password, ciphertext);
+      let serialized: unknown;
+      try {
+        serialized = await decrypt(password, ciphertext);
+      } catch {
+        throw new Error('Solana vault decryption failed');
+      }
       this.check(generation);
       await keyring.deserialize(serialized);
       this.check(generation);
@@ -149,7 +154,12 @@ export class SolanaVault {
       const ciphertext = await this.storage.read();
       this.check(generation);
       if (!ciphertext) throw new Error('Solana vault does not exist');
-      const serialized = await decrypt(password, ciphertext);
+      let serialized: unknown;
+      try {
+        serialized = await decrypt(password, ciphertext);
+      } catch {
+        throw new Error('Solana vault decryption failed');
+      }
       this.check(generation);
       // Restore from authenticated storage before constructing the next state.
       await candidate.deserialize(serialized);
