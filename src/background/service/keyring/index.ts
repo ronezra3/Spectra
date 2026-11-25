@@ -1338,6 +1338,71 @@ export class KeyringService extends EventEmitter {
     });
   }
 
+  /**
+   * Background-only preview. A unique EVM HD account explicitly identifies
+   * the source; the mnemonic never crosses the keyring boundary. This does
+   * not persist, associate, select or authorize the derived account.
+   */
+  async previewSolanaTestAddressFromEvmSeed(
+    evmAddress: string,
+    accountIndex: number
+  ): Promise<string> {
+    if (!this.isUnlocked()) throw new Error('Wallet is locked');
+    if (!/^0x[0-9a-f]{40}$/i.test(evmAddress))
+      throw new Error('Invalid EVM account');
+    const generation = this.lockGeneration;
+    const hdKeyrings = this.getKeyringsByType(KEYRING_TYPE.HdKeyring);
+    const candidates = await Promise.all(
+      hdKeyrings.map(async (keyring: HdKeyring) => ({
+        keyring,
+        accounts: await keyring.getAccounts(),
+      }))
+    );
+    if (!this.isUnlocked() || generation !== this.lockGeneration)
+      throw new Error('Wallet is locked');
+    const matches = candidates.filter(({ accounts }) =>
+      accounts.some(
+        (address: string) => address.toLowerCase() === evmAddress.toLowerCase()
+      )
+    );
+    if (matches.length !== 1)
+      throw new Error('EVM seed account is unavailable or ambiguous');
+    const source = matches[0].keyring;
+    if (
+      !source.mnemonic ||
+      source.isSlip39 ||
+      source.needPassphrase ||
+      source.passphrase
+    )
+      throw new Error('EVM seed is not supported for Solana preview');
+    const sourceMnemonic = source.mnemonic;
+    const candidate = new SolanaKeyring();
+    try {
+      const address = await candidate.addAccountFromMnemonic(
+        sourceMnemonic,
+        accountIndex
+      );
+      const currentAccounts = await source.getAccounts();
+      if (
+        !this.isUnlocked() ||
+        generation !== this.lockGeneration ||
+        !this.keyrings.includes(source) ||
+        source.mnemonic !== sourceMnemonic ||
+        source.isSlip39 ||
+        source.needPassphrase ||
+        !!source.passphrase ||
+        !currentAccounts.some(
+          (account: string) =>
+            account.toLowerCase() === evmAddress.toLowerCase()
+        )
+      )
+        throw new Error('Wallet account changed');
+      return address;
+    } finally {
+      candidate.cleanUp();
+    }
+  }
+
   /** Does not itself authorize signing or select the account. */
   hasAcknowledgedNativeSolanaCustody(): boolean {
     const keyrings = this.getKeyringsByType(SOLANA_KEYRING_TYPE);
