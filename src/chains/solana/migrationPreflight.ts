@@ -7,6 +7,7 @@ export type MigrationPreflight =
         | 'source-unavailable'
         | 'source-locked'
         | 'source-empty'
+        | 'target-present'
         | 'invalid-accounts'
         | 'snapshot-changed';
     }
@@ -24,6 +25,7 @@ export function assessSolanaMigration(input: {
   sourceUnlocked: boolean;
   sourceAccounts: readonly string[];
   targetAccounts: readonly string[];
+  targetHasSolanaKeyring: boolean;
 }): MigrationPreflight {
   if (!input.walletUnlocked) return { state: 'wallet-locked' };
   if (!input.sourceExists) return { state: 'source-unavailable' };
@@ -54,5 +56,7 @@ export function assessSolanaMigration(input: {
       sourceCount: input.sourceAccounts.length,
       overlapCount,
     };
+  if (input.targetHasSolanaKeyring || input.targetAccounts.length)
+    return { state: 'target-present' };
   return { state: 'ready', sourceCount: input.sourceAccounts.length };
 }

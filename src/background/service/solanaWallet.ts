@@ -1,6 +1,7 @@
 import keyringService from './keyring';
 import { SOLANA_DEVNET_NETWORK } from '@/chains/network';
 import { assessSolanaMigration } from '@/chains/solana/migrationPreflight';
+import { SOLANA_KEYRING_TYPE } from './keyring/solanaKeyringType';
 import {
   SolanaWalletAccount,
   walletAccountFromSolana,
@@ -98,7 +99,28 @@ class SolanaWalletService {
       sourceUnlocked: after.unlocked,
       sourceAccounts: after.accounts,
       targetAccounts,
+      targetHasSolanaKeyring:
+        keyringService.getKeyringsByType(SOLANA_KEYRING_TYPE).length > 0,
     });
+  }
+
+  /** Background-only: source is retained even after successful copying. */
+  async migrateTestVault(password: string): Promise<string[]> {
+    this.requireWalletUnlocked();
+    const preflight = await this.migrationPreflight();
+    if (preflight.state !== 'ready')
+      throw new Error(`Solana migration unavailable: ${preflight.state}`);
+    let copied: string[] = [];
+    await this.vault.withAuthenticatedMigrationSnapshot(
+      password,
+      async (snapshot, assertCurrent) => {
+        copied = await keyringService.importSolanaMigrationSnapshot(
+          snapshot,
+          assertCurrent
+        );
+      }
+    );
+    return copied;
   }
 
   async create(password: string): Promise<void> {

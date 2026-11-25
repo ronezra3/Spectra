@@ -3,11 +3,14 @@ import { solanaWalletService } from '@/background/service/solanaWallet';
 const mockAddress = 'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk';
 let mockUnlocked = false;
 let mockTargetAccounts: string[] = [];
+const mockImportSnapshot = jest.fn(async () => [mockAddress]);
 jest.mock('@/background/service/keyring', () => ({
   __esModule: true,
   default: {
     isUnlocked: () => true,
     getSolanaAccounts: async () => mockTargetAccounts,
+    getKeyringsByType: () => [],
+    importSolanaMigrationSnapshot: () => mockImportSnapshot(),
   },
 }));
 jest.mock('@/background/service/solanaVaultStorage', () => ({
@@ -27,6 +30,13 @@ jest.mock('@/background/service/solanaVault', () => ({
     }
     async getAccounts() {
       return [mockAddress];
+    }
+    async withAuthenticatedMigrationSnapshot(
+      password: string,
+      use: (snapshot: unknown, assertCurrent: () => void) => Promise<void>
+    ) {
+      if (password !== 'test-password') throw new Error('decryption failed');
+      await use({}, () => undefined);
     }
     lock() {
       mockUnlocked = false;
@@ -74,4 +84,21 @@ test('preflight inspects public accounts without moving or deleting them', async
   });
   solanaWalletService.lock();
   mockTargetAccounts = [];
+});
+
+test('migration is explicit, requires a ready source, and retains it', async () => {
+  await expect(
+    solanaWalletService.migrateTestVault('test-password')
+  ).rejects.toThrow('source-locked');
+  await solanaWalletService.unlock('test-password');
+  await expect(solanaWalletService.migrateTestVault('wrong')).rejects.toThrow(
+    'decryption failed'
+  );
+  expect(mockImportSnapshot).not.toHaveBeenCalled();
+  await expect(
+    solanaWalletService.migrateTestVault('test-password')
+  ).resolves.toEqual([mockAddress]);
+  expect(mockImportSnapshot).toHaveBeenCalledTimes(1);
+  expect((await solanaWalletService.status()).accounts).toEqual([mockAddress]);
+  solanaWalletService.lock();
 });

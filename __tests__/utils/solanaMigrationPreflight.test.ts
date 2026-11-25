@@ -8,6 +8,7 @@ const base = {
   sourceUnlocked: true,
   sourceAccounts: [first],
   targetAccounts: [] as string[],
+  targetHasSolanaKeyring: false,
 };
 
 test('requires both wallets unlocked and a non-empty source', () => {
@@ -45,7 +46,9 @@ test('blocks ambiguous or invalid account snapshots without inferring ownership'
     assessSolanaMigration({ ...base, sourceAccounts: ['invalid address'] })
   ).toEqual({ state: 'invalid-accounts' });
   expect(assessSolanaMigration({ ...base, targetAccounts: [second] })).toEqual({
-    state: 'ready',
-    sourceCount: 1,
+    state: 'target-present',
   });
+  expect(
+    assessSolanaMigration({ ...base, targetHasSolanaKeyring: true })
+  ).toEqual({ state: 'target-present' });
 });
