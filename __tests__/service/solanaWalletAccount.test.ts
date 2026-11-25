@@ -11,6 +11,12 @@ const mockImportSnapshot = jest.fn(async (fingerprint: string) => {
   return [mockAddress];
 });
 const mockSharedSign = jest.fn(async () => new Uint8Array(64).fill(1));
+const mockAddedAddress = 'added-test-account';
+const mockAddShared = jest.fn(async (_mnemonic, _index, check) => {
+  check();
+  mockTargetAccounts.push(mockAddedAddress);
+  return mockAddedAddress;
+});
 jest.mock('@/background/service/keyring', () => ({
   __esModule: true,
   default: {
@@ -22,6 +28,11 @@ jest.mock('@/background/service/keyring', () => ({
       if (password !== 'test-password') throw new Error('wrong password');
     },
     signSharedSolanaMessage: () => mockSharedSign(),
+    addSharedSolanaTestAccount: (
+      mnemonic: string,
+      index: number,
+      check: () => void
+    ) => mockAddShared(mnemonic, index, check),
     importSolanaMigrationSnapshot: (
       _snapshot: unknown,
       _check: unknown,
@@ -87,7 +98,39 @@ beforeEach(() => {
   mockTargetAccounts = [];
   mockImportSnapshot.mockClear();
   mockSharedSign.mockClear();
+  mockAddShared.mockClear();
   solanaWalletService.lockForWalletBoundary();
+});
+
+test('authenticates before adding and selecting a shared test account', async () => {
+  mockFingerprint = jest
+    .requireActual('@/background/service/solanaVault')
+    .fingerprintSolanaVault(mockCiphertext);
+  mockTargetAccounts = [mockAddress];
+  await solanaWalletService.status();
+  await expect(
+    solanaWalletService.addSharedTestMnemonic('wrong', 'test phrase', 1)
+  ).rejects.toThrow('wrong password');
+  expect(mockAddShared).not.toHaveBeenCalled();
+  await expect(
+    solanaWalletService.addSharedTestMnemonic('test-password', 'test phrase', 1)
+  ).resolves.toBe(mockAddedAddress);
+  expect(solanaWalletService.getSelectedAccount()?.address).toBe(
+    mockAddedAddress
+  );
+});
+
+test('does not add when the retained encrypted source has changed', async () => {
+  mockFingerprint = jest
+    .requireActual('@/background/service/solanaVault')
+    .fingerprintSolanaVault(mockCiphertext);
+  mockTargetAccounts = [mockAddress];
+  await solanaWalletService.status();
+  mockCiphertext = 'different source';
+  await expect(
+    solanaWalletService.addSharedTestMnemonic('test-password', 'test phrase', 1)
+  ).rejects.toThrow('unavailable');
+  expect(mockAddShared).not.toHaveBeenCalled();
 });
 
 test('exposes a public selected account only while unlocked and preserves the existing controller contract', async () => {
