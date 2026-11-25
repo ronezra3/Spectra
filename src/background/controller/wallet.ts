@@ -1,3 +1,6 @@
+import { resolveNetworkAccount } from '@/chains/resolveNetworkAccount';
+import type { WalletNetwork } from '@/chains/network';
+import { walletAccountFromEvm } from '@/chains/walletAccount';
 import { getExperimentalSolanaWallet } from '../service/solanaRuntime';
 import {
   stripHexPrefix,
@@ -510,6 +513,25 @@ function getDesktopPageType(path: string): DesktopPageType {
 export class WalletController extends BaseController {
   openapi = openapiService;
   fakeTestnetOpenapi = fakeTestnetOpenapi;
+
+  /** Read-only projection. Account selection and signing remain family-specific. */
+  getNetworkAccount = (network: WalletNetwork) => {
+    if (!keyringService.isUnlocked()) return null;
+    return resolveNetworkAccount(network, {
+      evm: () => {
+        const current = preferenceService.getCurrentAccount();
+        return current ? walletAccountFromEvm(current) : null;
+      },
+      solana: () => {
+        if (
+          process.env.NODE_ENV !== 'development' ||
+          process.env.OMNI_SOLANA_READONLY !== '1'
+        )
+          return null;
+        return getExperimentalSolanaWallet().getSelectedWalletAccount();
+      },
+    });
+  };
 
   // Extension-owned UI only. The runtime gate excludes custody in production.
   experimentalSolanaStatus = () => getExperimentalSolanaWallet().status();
