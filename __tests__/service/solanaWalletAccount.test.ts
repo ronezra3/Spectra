@@ -2,12 +2,20 @@
 import { solanaWalletService } from '@/background/service/solanaWallet';
 const mockAddress = 'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk';
 let mockUnlocked = false;
+let mockTargetAccounts: string[] = [];
 jest.mock('@/background/service/keyring', () => ({
   __esModule: true,
-  default: { isUnlocked: () => true },
+  default: {
+    isUnlocked: () => true,
+    getSolanaAccounts: async () => mockTargetAccounts,
+  },
 }));
 jest.mock('@/background/service/solanaVaultStorage', () => ({
-  SolanaIndexedDbStorage: class {},
+  SolanaIndexedDbStorage: class {
+    async read() {
+      return 'encrypted';
+    }
+  },
 }));
 jest.mock('@/background/service/solanaVault', () => ({
   SolanaVault: class {
@@ -47,4 +55,23 @@ test('exposes a public selected account only while unlocked and preserves the ex
   solanaWalletService.lock();
   expect(solanaWalletService.getSelectedWalletAccount()).toBeNull();
   expect(solanaWalletService.getSelectedAccount()).toBeNull();
+});
+
+test('preflight inspects public accounts without moving or deleting them', async () => {
+  expect(await solanaWalletService.migrationPreflight()).toEqual({
+    state: 'source-locked',
+  });
+  await solanaWalletService.unlock('test-password');
+  expect(await solanaWalletService.migrationPreflight()).toEqual({
+    state: 'ready',
+    sourceCount: 1,
+  });
+  mockTargetAccounts = [mockAddress];
+  expect(await solanaWalletService.migrationPreflight()).toEqual({
+    state: 'overlap-detected',
+    sourceCount: 1,
+    overlapCount: 1,
+  });
+  solanaWalletService.lock();
+  mockTargetAccounts = [];
 });
