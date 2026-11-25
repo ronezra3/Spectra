@@ -41,11 +41,18 @@ import {
   readWalletView,
   writeWalletView,
 } from './components/walletViewPreference';
+import { getDashboardNetwork } from './components/dashboardNetworks';
+import type { Chain } from '@debank/common';
+import type { Account } from '@/background/service/preference';
 
 let SolanaWallet: React.ComponentType<{
   onExit: () => void;
   onPendingChange: (pending: boolean) => void;
   evmAccount: { address: string; type: string; brandName: string } | null;
+}> | null = null;
+let EvmNetworkOverview: React.ComponentType<{
+  chain: Chain;
+  account: Account | null;
 }> | null = null;
 if (
   process.env.NODE_ENV === 'development' &&
@@ -53,6 +60,9 @@ if (
 ) {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   SolanaWallet = require('../ExperimentalSolanaWallet').default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  EvmNetworkOverview = require('./components/EvmNetworkOverview')
+    .EvmNetworkOverview;
 }
 
 const Dashboard = () => {
@@ -267,6 +277,11 @@ const Dashboard = () => {
               onExit={() => selectWalletView('evm')}
               onPendingChange={setSolanaPending}
               evmAccount={currentAccount || null}
+            />
+          ) : getDashboardNetwork(walletFamily) && EvmNetworkOverview ? (
+            <EvmNetworkOverview
+              chain={getDashboardNetwork(walletFamily)!}
+              account={currentAccount || null}
             />
           ) : (
             <>

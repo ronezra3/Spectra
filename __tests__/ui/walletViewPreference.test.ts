@@ -10,6 +10,8 @@ test('remembers the dashboard view and ignores invalid stored values', () => {
   expect(readWalletView()).toBe('solana');
   writeWalletView('evm');
   expect(readWalletView()).toBe('evm');
+  writeWalletView('evm:1');
+  expect(readWalletView()).toBe('evm:1');
   localStorage.setItem('omniwallet.dashboard-view', 'unexpected');
   expect(readWalletView()).toBe('evm');
   localStorage.clear();

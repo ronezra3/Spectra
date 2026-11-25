@@ -30,6 +30,8 @@ interface Props {
   selectChainId: string | null;
   visible: boolean;
   onEmptyAssets: (isEmpty: boolean) => void;
+  showPerps?: boolean;
+  showNfts?: boolean;
 }
 
 export const AssetListContainer: React.FC<Props> = ({
@@ -37,6 +39,8 @@ export const AssetListContainer: React.FC<Props> = ({
   selectChainId,
   visible,
   onEmptyAssets,
+  showPerps = true,
+  showNfts = true,
 }) => {
   const { t } = useTranslation();
   const [search, setSearch] = React.useState<string>('');
@@ -52,7 +56,7 @@ export const AssetListContainer: React.FC<Props> = ({
     isLoading: isNftLoading,
   } = useNFTCollections(currentAccount?.address, {
     preferCacheOnExists: true,
-    visible,
+    visible: visible && showNfts,
   });
 
   const { setApps } = useCommonPopupView();
@@ -232,7 +236,7 @@ export const AssetListContainer: React.FC<Props> = ({
             <TokenListSkeleton />
           ) : (
             <>
-              {visible && !search ? (
+              {visible && !search && showPerps ? (
                 <HomePerpsPositionList needFetchMarket />
               ) : null}
               <ProtocolList
@@ -247,7 +251,10 @@ export const AssetListContainer: React.FC<Props> = ({
         </div>
         <div
           style={{
-            display: visible && !search && !selectChainId ? 'block' : 'none',
+            display:
+              visible && showNfts && !search && !selectChainId
+                ? 'block'
+                : 'none',
           }}
         >
           <NftPreviewSection
