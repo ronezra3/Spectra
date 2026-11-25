@@ -71,7 +71,8 @@ export async function requestSolanaMessageApproval(
 /** Independent approval for an inspected single SOL transfer. */
 export async function requestSolanaTransferApproval(
   context: SolanaApprovalContext,
-  transfer: InspectedSolanaTransfer
+  transfer: InspectedSolanaTransfer,
+  source: 'dapp' | 'wallet' = 'dapp'
 ): Promise<boolean> {
   if (
     (context.kind !== 'sign-transaction' &&
@@ -88,6 +89,7 @@ export async function requestSolanaTransferApproval(
       params: {
         origin: context.origin,
         cluster: context.cluster,
+        source,
         send: context.kind === 'sign-and-send-transaction',
         ...transfer,
       },

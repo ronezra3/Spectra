@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button } from 'antd';
+import './solanaApproval.less';
 import { bindApproval, useApproval } from 'ui/utils';
 import { parseSolanaReadOnlyAddress } from '@/chains/solana/readOnlyAddress';
 
@@ -36,22 +37,30 @@ const SolanaConnect = ({
     parseSolanaReadOnlyAddress(params.account)?.address === params.account;
 
   return (
-    <main style={{ padding: 24 }}>
+    <main className="solana-approval">
       <h1>Connect to Solana</h1>
+      <span className="solana-approval__network">Solana Devnet</span>
       {valid ? (
         <>
           <p>Allow this site to see your Solana address on Devnet?</p>
-          <p>
-            Site: <strong>{params?.origin}</strong>
+          <div className="solana-approval__card">
+            <div className="solana-approval__row">
+              <span className="solana-approval__label">Site</span>
+              <strong>{params?.origin}</strong>
+            </div>
+            <div className="solana-approval__row">
+              <span className="solana-approval__label">Account</span>
+              <span>{params?.account}</span>
+            </div>
+          </div>
+          <p className="solana-approval__warning">
+            Signing will require a separate approval.
           </p>
-          <p style={{ overflowWrap: 'anywhere' }}>Address: {params?.account}</p>
-          <p>Network: Solana Devnet</p>
-          <p>Signing will require a separate approval.</p>
         </>
       ) : (
         <p role="alert">This connection request is invalid.</p>
       )}
-      <div style={{ display: 'flex', gap: 12 }}>
+      <div className="solana-approval__footer">
         <Button onClick={() => reject()}>Cancel</Button>
         <Button
           type="primary"

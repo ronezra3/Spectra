@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button } from 'antd';
+import './solanaApproval.less';
 import { bindApproval, useApproval } from 'ui/utils';
 import { parseSolanaReadOnlyAddress } from '@/chains/solana/readOnlyAddress';
 
@@ -12,6 +13,7 @@ export type SolanaSignTransferParams = {
   lamports: string;
   recentBlockhash: string;
   transactionHex: string;
+  source?: 'dapp' | 'wallet';
 };
 
 const SolanaSignTransfer = ({
@@ -57,35 +59,51 @@ const SolanaSignTransfer = ({
     sol = `${lamports / 1000000000n}${fraction ? `.${fraction}` : ''}`;
   }
   return (
-    <main style={{ padding: 24 }}>
+    <main className="solana-approval">
       <h1>
         {params?.send
           ? 'Sign and send Solana transfer'
           : 'Sign Solana transfer'}
       </h1>
+      <span className="solana-approval__network">Solana Devnet</span>
       {valid ? (
         <>
-          <p>
-            Site: <strong>{params?.origin}</strong>
-          </p>
-          <p>Network: Solana Devnet</p>
-          <p style={{ overflowWrap: 'anywhere' }}>From: {params?.from}</p>
-          <p style={{ overflowWrap: 'anywhere' }}>To: {params?.to}</p>
-          <p>
-            Amount: {sol} SOL ({params?.lamports} lamports)
-          </p>
-          <p>
+          <div className="solana-approval__card">
+            <div className="solana-approval__amount">{sol} SOL</div>
+            <div className="solana-approval__row">
+              <span className="solana-approval__label">
+                {params?.source === 'wallet' ? 'Requested by' : 'Site'}
+              </span>
+              <strong>
+                {params?.source === 'wallet' ? 'Your wallet' : params?.origin}
+              </strong>
+            </div>
+            <div className="solana-approval__row">
+              <span className="solana-approval__label">From</span>
+              <span>{params?.from}</span>
+            </div>
+            <div className="solana-approval__row">
+              <span className="solana-approval__label">To</span>
+              <span>{params?.to}</span>
+            </div>
+            <div className="solana-approval__row">
+              <span className="solana-approval__label">Amount in lamports</span>
+              <span>{params?.lamports}</span>
+            </div>
+            <div className="solana-approval__row">
+              <span className="solana-approval__label">Recent blockhash</span>
+              <span>{params?.recentBlockhash}</span>
+            </div>
+          </div>
+          <div className="solana-approval__warning">
             Network fee is additional and is not estimated here.{' '}
             {params?.send
               ? 'The signed transaction will be sent to the public Devnet RPC and may be processed even if the wallet locks or the request fails.'
               : 'The site may submit the signed transaction.'}
-          </p>
-          <p style={{ overflowWrap: 'anywhere' }}>
-            Recent blockhash: {params?.recentBlockhash}
-          </p>
-          <details>
+          </div>
+          <details className="solana-approval__card">
             <summary>Exact unsigned transaction bytes</summary>
-            <pre style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+            <pre className="solana-approval__bytes">
               {params?.transactionHex}
             </pre>
           </details>
@@ -93,7 +111,7 @@ const SolanaSignTransfer = ({
       ) : (
         <p role="alert">This transaction request is invalid.</p>
       )}
-      <div style={{ display: 'flex', gap: 12 }}>
+      <div className="solana-approval__footer">
         <Button onClick={() => reject()}>Cancel</Button>
         <Button
           type="primary"

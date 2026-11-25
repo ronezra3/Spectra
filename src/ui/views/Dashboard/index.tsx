@@ -227,6 +227,16 @@ const Dashboard = () => {
       <div className="relative h-full overflow-hidden">
         <div className="dashboard h-full overflow-y-auto">
           <DashboardHeader onSettingClick={toggleShowMoreSettings} />
+          {process.env.NODE_ENV === 'development' &&
+            process.env.OMNI_SOLANA_READONLY === '1' && (
+              <button
+                type="button"
+                className="mx-[16px] mb-[12px] w-[calc(100%-32px)] rounded-[8px] border-0 bg-r-blue-light1 px-[16px] py-[12px] text-left text-r-blue-default cursor-pointer"
+                onClick={() => history.push('/experimental/solana-wallet')}
+              >
+                Solana wallet · Devnet →
+              </button>
+            )}
           <DashboardPanel onSettingClick={toggleShowMoreSettings} />
           <div className="px-[16px] pb-[13px]">
             <GasPriceBar

@@ -6,7 +6,7 @@ support. Existing Ethereum provider routing and account storage remain separate.
 
 ## Local flow
 
-Build with `OMNI_SOLANA_DISCOVERY=1 OMNI_SOLANA_READONLY=1 yarn build:dev`, load
+Build the Chrome MV3 extension with `MANIFEST_TYPE=chrome-mv3 OMNI_SOLANA_DISCOVERY=1 OMNI_SOLANA_READONLY=1 yarn build:dev`, load
 it in an isolated extension profile, and open the extension tab at
 `#/experimental/solana-wallet`. Unlock the existing Rabby test wallet, create
 a separate Solana test vault with a disposable test password, and import a
@@ -46,8 +46,9 @@ needed or permitted for this experiment.
 ## Deliberate limits and follow-up
 
 - No mainnet, hardware wallet, token transfer, NFT, swaps, or full transaction
-  simulation; no computed fee, account balance dashboard, recovery export, or
-  arbitrary program instructions. Versioned and multi-instruction transactions
+  simulation; no computed fee, recovery export, or arbitrary program instructions.
+  The experimental wallet shows SOL and unverified SPL balances and supports
+  native SOL sends with the same approval-bound signing pipeline. Versioned and multi-instruction transactions
   fail closed. Some dapps and transaction options are therefore unsupported.
 - No independent security audit. Browser, worker-restart, lock/account/chain
   races, production gating, real RPC failures, and EVM regression must be
