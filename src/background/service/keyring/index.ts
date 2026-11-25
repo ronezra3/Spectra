@@ -1888,6 +1888,60 @@ export class KeyringService extends EventEmitter {
     return this.isUnlocked() ? accounts.flat() : [];
   }
 
+  /** Read-only hint; neither selects an account nor grants any permission. */
+  async getAssociatedSolanaTestAccount(
+    evmAddress: string
+  ): Promise<string | null> {
+    if (!this.isUnlocked() || !/^0x[0-9a-f]{40}$/i.test(evmAddress))
+      return null;
+    if (
+      !this.hasAcknowledgedSolanaMigration() &&
+      !this.hasAcknowledgedNativeSolanaCustody()
+    )
+      return null;
+    const generation = this.lockGeneration;
+    const [keyring] = this.getKeyringsByType(
+      SOLANA_KEYRING_TYPE
+    ) as SolanaKeyring[];
+    const matches = keyring
+      .getEvmAssociations()
+      .filter(
+        (entry) => entry.evmAddress.toLowerCase() === evmAddress.toLowerCase()
+      );
+    // An EVM source with several explicit Solana accounts needs user selection.
+    if (matches.length !== 1) return null;
+    const association = matches[0];
+    try {
+      const derived = await this.previewSolanaTestAddressFromEvmSeed(
+        evmAddress,
+        association.accountIndex
+      );
+      if (
+        !this.isUnlocked() ||
+        generation !== this.lockGeneration ||
+        (!this.hasAcknowledgedSolanaMigration() &&
+          !this.hasAcknowledgedNativeSolanaCustody()) ||
+        this.getKeyringsByType(SOLANA_KEYRING_TYPE)[0] !== keyring ||
+        derived !== association.solanaAddress
+      )
+        return null;
+      const currentMatches = keyring
+        .getEvmAssociations()
+        .filter(
+          (entry) => entry.evmAddress.toLowerCase() === evmAddress.toLowerCase()
+        );
+      if (
+        currentMatches.length !== 1 ||
+        currentMatches[0].solanaAddress !== association.solanaAddress ||
+        currentMatches[0].accountIndex !== association.accountIndex
+      )
+        return null;
+      return association.solanaAddress;
+    } catch {
+      return null;
+    }
+  }
+
   /** Background signing primitive; callers must enforce exact user approval. */
   async signSharedSolanaMessage(
     address: string,

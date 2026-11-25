@@ -79,6 +79,14 @@ test('derives and signs with a linked test account, then restores the associatio
     address
   );
   expect(solanaAddress).toBe('HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk');
+  expect(
+    await keyringService.getAssociatedSolanaTestAccount(address.toUpperCase())
+  ).toBe(solanaAddress);
+  expect(
+    await keyringService.getAssociatedSolanaTestAccount(
+      '0x0000000000000000000000000000000000000001'
+    )
+  ).toBeNull();
   const message = new Uint8Array([1, 2, 3]);
   const signature = await solanaWalletService.signMessage(
     solanaAddress,
@@ -89,12 +97,18 @@ test('derives and signs with a linked test account, then restores the associatio
   );
   await keyringService.setLocked();
   solanaWalletService.lockForWalletBoundary();
+  expect(
+    await keyringService.getAssociatedSolanaTestAccount(address)
+  ).toBeNull();
   await keyringService.submitPassword('test-password');
   solanaWalletService.lockForWalletBoundary();
   expect((await solanaWalletService.status()).accounts).toEqual([
     solanaAddress,
   ]);
   const [solana] = keyringService.getKeyringsByType(SOLANA_KEYRING_TYPE);
+  expect(await keyringService.getAssociatedSolanaTestAccount(address)).toBe(
+    solanaAddress
+  );
   expect(solana.getEvmAssociations()).toEqual([
     { evmAddress: address, solanaAddress, accountIndex: 0 },
   ]);
