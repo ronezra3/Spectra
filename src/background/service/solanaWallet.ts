@@ -483,6 +483,62 @@ class SolanaWalletService {
       this.invalidateConnections();
     }
   }
+
+  /** Select only a verified explicit link; an unlinked account stays unchanged. */
+  async selectAssociatedAccountForEvm(
+    expectedAddress: string
+  ): Promise<'selected' | 'not-linked'> {
+    this.requireWalletUnlocked();
+    const current = preferenceService.getCurrentAccount();
+    if (
+      !current ||
+      typeof expectedAddress !== 'string' ||
+      current.type !== KEYRING_TYPE.HdKeyring ||
+      current.address.toLowerCase() !== expectedAddress.toLowerCase()
+    )
+      throw new Error('Selected EVM account changed');
+    const identity = this.sharedIdentity();
+    const generation = solanaSigningSession.currentGeneration();
+    if (!identity || this.sharedManuallyLocked) return 'not-linked';
+    if (!(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    if (generation !== solanaSigningSession.currentGeneration())
+      throw new Error('Selected EVM account changed');
+    const linked = await keyringService.getAssociatedSolanaTestAccount(
+      expectedAddress
+    );
+    const checked = preferenceService.getCurrentAccount();
+    if (
+      !checked ||
+      checked.type !== current.type ||
+      checked.brandName !== current.brandName ||
+      checked.address.toLowerCase() !== current.address.toLowerCase() ||
+      generation !== solanaSigningSession.currentGeneration() ||
+      this.sharedIdentity() !== identity ||
+      !this.isUnlocked()
+    )
+      throw new Error('Selected EVM account changed');
+    if (!linked) return 'not-linked';
+    if (!(await this.verifySharedCustody()))
+      throw new Error('Solana migration requires reconciliation');
+    const latest = preferenceService.getCurrentAccount();
+    if (
+      !latest ||
+      latest.type !== current.type ||
+      latest.brandName !== current.brandName ||
+      latest.address.toLowerCase() !== current.address.toLowerCase() ||
+      generation !== solanaSigningSession.currentGeneration() ||
+      this.sharedIdentity() !== identity ||
+      !this.isUnlocked()
+    )
+      throw new Error('Selected EVM account changed');
+    if (this.selected !== linked) {
+      this.invalidateConnections();
+      this.selected = linked;
+      this.invalidateConnections();
+    }
+    return 'selected';
+  }
 }
 
 export const solanaWalletService = new SolanaWalletService();

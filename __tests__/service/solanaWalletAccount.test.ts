@@ -22,6 +22,7 @@ const mockImportSnapshot = jest.fn(async (fingerprint: string) => {
   return [mockAddress];
 });
 const mockSharedSign = jest.fn(async () => new Uint8Array(64).fill(1));
+const mockAssociated = jest.fn<Promise<string | null>, [string]>();
 const mockAddedAddress = 'added-test-account';
 const mockAddShared = jest.fn(async (_mnemonic, _index, check) => {
   check();
@@ -45,6 +46,8 @@ jest.mock('@/background/service/keyring', () => ({
   default: {
     isUnlocked: () => true,
     getSolanaAccounts: async () => mockTargetAccounts,
+    getAssociatedSolanaTestAccount: (address: string) =>
+      mockAssociated(address),
     getKeyringsByType: () => [],
     getSolanaMigrationSourceFingerprint: () => mockFingerprint,
     hasAcknowledgedNativeSolanaCustody: () => mockNativeCustody,
@@ -134,10 +137,73 @@ beforeEach(() => {
   mockTargetAccounts = [];
   mockImportSnapshot.mockClear();
   mockSharedSign.mockClear();
+  mockAssociated.mockReset();
+  mockAssociated.mockResolvedValue(null);
   mockAddShared.mockClear();
   mockCreateNative.mockClear();
   mockCreateLinked.mockClear();
   solanaWalletService.lockForWalletBoundary();
+});
+
+test('selects only a verified link and leaves an unlinked selection unchanged', async () => {
+  mockNativeCustody = true;
+  mockCiphertext = null;
+  mockTargetAccounts = [mockAddress, mockAddedAddress];
+  mockCurrentAccount = {
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+    brandName: 'HD Key Tree',
+  };
+  await solanaWalletService.status();
+  mockAssociated.mockResolvedValue(mockAddedAddress);
+  await expect(
+    solanaWalletService.selectAssociatedAccountForEvm(
+      mockCurrentAccount.address
+    )
+  ).resolves.toBe('selected');
+  expect(solanaWalletService.getSelectedAccount()?.address).toBe(
+    mockAddedAddress
+  );
+  mockAssociated.mockResolvedValue(null);
+  await expect(
+    solanaWalletService.selectAssociatedAccountForEvm(
+      mockCurrentAccount.address
+    )
+  ).resolves.toBe('not-linked');
+  expect(solanaWalletService.getSelectedAccount()?.address).toBe(
+    mockAddedAddress
+  );
+  await expect(
+    solanaWalletService.selectAssociatedAccountForEvm(
+      '0x0000000000000000000000000000000000000002'
+    )
+  ).rejects.toThrow('changed');
+});
+
+test('does not switch Solana account if the EVM account changes during resolution', async () => {
+  mockNativeCustody = true;
+  mockCiphertext = null;
+  mockTargetAccounts = [mockAddress, mockAddedAddress];
+  mockCurrentAccount = {
+    address: '0x0000000000000000000000000000000000000001',
+    type: 'HD Key Tree',
+    brandName: 'HD Key Tree',
+  };
+  await solanaWalletService.status();
+  mockAssociated.mockImplementationOnce(async () => {
+    mockCurrentAccount = {
+      address: '0x0000000000000000000000000000000000000002',
+      type: 'HD Key Tree',
+      brandName: 'HD Key Tree',
+    };
+    return mockAddedAddress;
+  });
+  await expect(
+    solanaWalletService.selectAssociatedAccountForEvm(
+      '0x0000000000000000000000000000000000000001'
+    )
+  ).rejects.toThrow('changed');
+  expect(solanaWalletService.getSelectedAccount()?.address).toBe(mockAddress);
 });
 
 test('requires an authenticated selected EVM HD account to create a linked Solana account', async () => {
