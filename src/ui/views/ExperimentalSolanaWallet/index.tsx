@@ -8,6 +8,7 @@ import { SolanaReceive } from './SolanaReceive';
 import { SolanaActivity } from './SolanaActivity';
 import { SolanaOnboarding } from './SolanaOnboarding';
 import { SolanaMigration } from './SolanaMigration';
+import { KEYRING_TYPE } from '@/constant';
 import './style.less';
 
 type Status = {
@@ -22,9 +23,11 @@ type Status = {
 const ExperimentalSolanaWallet = ({
   onExit,
   onPendingChange,
+  evmAccount,
 }: {
   onExit?: () => void;
   onPendingChange?: (pending: boolean) => void;
+  evmAccount?: { address: string; type: string; brandName: string } | null;
 }) => {
   const wallet = useWallet();
   const history = useHistory();
@@ -32,6 +35,10 @@ const ExperimentalSolanaWallet = ({
   const [busy, setBusy] = useState(false);
   const [sendPending, setSendPending] = useState(false);
   const [migrationPending, setMigrationPending] = useState(false);
+  const [aligning, setAligning] = useState(false);
+  const [association, setAssociation] = useState<
+    'selected' | 'not-linked' | 'manual' | null
+  >(null);
   const [error, setError] = useState('');
   const [assetRefresh, setAssetRefresh] = useState(0);
   const [view, setView] = useState<
@@ -46,8 +53,8 @@ const ExperimentalSolanaWallet = ({
   const refreshTimer = useRef<number>();
 
   useEffect(() => {
-    onPendingChange?.(sendPending || migrationPending);
-  }, [sendPending, migrationPending, onPendingChange]);
+    onPendingChange?.(sendPending || migrationPending || aligning);
+  }, [sendPending, migrationPending, aligning, onPendingChange]);
 
   useEffect(() => () => window.clearTimeout(refreshTimer.current), []);
 
@@ -57,23 +64,38 @@ const ExperimentalSolanaWallet = ({
 
   useEffect(() => {
     let active = true;
-    wallet.experimentalSolanaStatus().then(
-      (next) => {
-        if (active) setStatus(next);
-      },
-      (cause) => {
+    setStatus(null);
+    setError('');
+    setAssociation(null);
+    setAligning(true);
+    (async () => {
+      let alignment: 'selected' | 'not-linked' | null = null;
+      if (evmAccount?.address && evmAccount.type === KEYRING_TYPE.HdKeyring)
+        alignment = await wallet.experimentalSolanaSelectAssociated(
+          evmAccount.address
+        );
+      else if (evmAccount) alignment = 'not-linked';
+      const next = await wallet.experimentalSolanaStatus();
+      if (active) {
+        setAssociation(alignment);
+        setStatus(next);
+      }
+    })()
+      .catch((cause) => {
         if (active)
           setError(
             cause?.message === 'Solana migration requires reconciliation'
               ? 'The original test vault changed after migration. Reconciliation is required; the original vault has been retained.'
-              : 'Could not load the experimental Solana vault.'
+              : 'Could not load the experimental Solana wallet. Reopen it and try again.'
           );
-      }
-    );
+      })
+      .finally(() => {
+        if (active) setAligning(false);
+      });
     return () => {
       active = false;
     };
-  }, [wallet]);
+  }, [wallet, evmAccount?.address, evmAccount?.type, evmAccount?.brandName]);
 
   const perform = async (operation: () => Promise<unknown>) => {
     if (busy) return;
@@ -116,7 +138,7 @@ const ExperimentalSolanaWallet = ({
       <button
         className="solana-wallet__back"
         type="button"
-        disabled={sendPending || migrationPending}
+        disabled={sendPending || migrationPending || aligning}
         onClick={() =>
           view === 'overview' || !status?.unlocked
             ? onExit
@@ -144,6 +166,18 @@ const ExperimentalSolanaWallet = ({
         </details>
       </div>
       {error && <p role="alert">{error}</p>}
+      {association === 'not-linked' && status?.unlocked && status.selected && (
+        <p className="solana-wallet__notice">
+          This Solana test account is not linked to the selected EVM account.
+          Check the address before using it.
+        </p>
+      )}
+      {association === 'manual' && status?.unlocked && status.selected && (
+        <p className="solana-wallet__notice">
+          You selected this Solana test account manually. Check its address
+          before using it.
+        </p>
+      )}
       {!status ? (
         error ? null : (
           <p>Loading…</p>
@@ -232,6 +266,7 @@ const ExperimentalSolanaWallet = ({
                             onClick={() =>
                               void perform(async () => {
                                 await wallet.experimentalSolanaSelect(address);
+                                setAssociation('manual');
                                 setView('overview');
                               })
                             }
