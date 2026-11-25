@@ -54,6 +54,7 @@ import uninstalledMetricService from '../uninstalled';
 import { isEmpty } from 'lodash';
 import { sanitizeUnencryptedKeyringData } from './sanitizeUnencryptedKeyringData';
 import { SOLANA_KEYRING_TYPE } from './solanaKeyringType';
+import { SolanaKeyring } from './solanaKeyring';
 import { SigningAttempt, withSigningDiagnostics } from './signing-diagnostics';
 import {
   clearWalletConnectTransportError,
@@ -1273,7 +1274,12 @@ export class KeyringService extends EventEmitter {
    */
   async _restoreKeyring(serialized: any): Promise<any> {
     const { type, data } = serialized;
-    const Keyring = this.getKeyringClassForType(type);
+    // Restore an authenticated persisted Solana keyring even when the
+    // experimental UI is disabled. Do not register it for generic creation.
+    const Keyring =
+      type === SOLANA_KEYRING_TYPE
+        ? SolanaKeyring
+        : this.getKeyringClassForType(type);
     const keyring =
       Keyring?.type === KEYRING_CLASS.WALLETCONNECT
         ? new Keyring(GET_WALLETCONNECT_CONFIG())
