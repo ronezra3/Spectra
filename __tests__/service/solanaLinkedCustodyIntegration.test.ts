@@ -109,6 +109,9 @@ test('derives and signs with a linked test account, then restores the associatio
   expect(await keyringService.getAssociatedSolanaTestAccount(address)).toBe(
     solanaAddress
   );
+  await expect(
+    solanaWalletService.selectAssociatedAccountForEvm(address)
+  ).resolves.toBe('selected');
   expect(solana.getEvmAssociations()).toEqual([
     { evmAddress: address, solanaAddress, accountIndex: 0 },
   ]);
